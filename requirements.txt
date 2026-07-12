@@ -9,5 +9,4 @@ streamlit-folium
 streamlit_autorefresh
 base64
 datetime
-io
 folium
