@@ -17,13 +17,13 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("⛈️ ECMWF IFS Weather Meteogram Generator")
-st.markdown("Generate custom high-resolution weather dashboards powered by Open-Meteo API.")
+st.title("⛈️ Weather Meteogram ")
+st.markdown("by Open-Meteo API.")
 
 # -------------------------------------------------------------------------------
 # 2. SIDEBAR CONTROLS (User Inputs)
 # -------------------------------------------------------------------------------
-st.sidebar.header("Location & Forecast Settings")
+st.sidebar.header("Location\nForecast Settings")
 
 # Default coordinates for user convenience
 LAT = st.sidebar.number_input("Latitude", min_value=-90.0, max_value=90.0, value=9.605, step=0.001, format="%.3f")
