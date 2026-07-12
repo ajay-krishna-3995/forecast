@@ -7,6 +7,4 @@ matplotlib
 scipy
 streamlit-folium
 streamlit_autorefresh
-base64
-datetime
 folium
