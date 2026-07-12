@@ -9,6 +9,8 @@ import streamlit as st
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from scipy.ndimage import gaussian_filter
 from streamlit_folium import st_folium
+# IMPORT THE AUTOREFRESH UTILITY
+from streamlit_autorefresh import st_autorefresh
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
@@ -18,6 +20,10 @@ st.set_page_config(
     page_icon="⛈️",
     layout="wide"
 )
+
+# Run an auto-refresh every 60,000 milliseconds (1 minute).
+# The key keeps the counter persistent across manual clicks/interactions.
+st_autorefresh(interval=60000, key="meteogram_peer_refresh")
 
 st.title("⛈️ Weather Meteogram")
 st.markdown("by Open-Meteo API.")
