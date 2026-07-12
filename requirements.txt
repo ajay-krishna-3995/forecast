@@ -6,3 +6,4 @@ pytz
 matplotlib
 scipy
 streamlit-folium
+streamlit_autorefresh
