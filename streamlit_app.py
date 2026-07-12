@@ -1,4 +1,5 @@
 import datetime
+import folium
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,39 +8,72 @@ import requests
 import streamlit as st
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from scipy.ndimage import gaussian_filter
+from streamlit_folium import st_folium
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
 # -------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="ECMWF Meteogram Dashboard",
+    page_title="Weather Meteogram",
     page_icon="⛈️",
     layout="wide"
 )
 
-st.title("⛈️ Weather Meteogram ")
+st.title("⛈️ Weather Meteogram")
 st.markdown("by Open-Meteo API.")
 
 # -------------------------------------------------------------------------------
-# 2. SIDEBAR CONTROLS (User Inputs)
+# 2. SIDEBAR CONTROLS & INTERACTIVE MAP SELECTOR
 # -------------------------------------------------------------------------------
 st.sidebar.header("Location\nForecast Settings")
 
-# Default coordinates for user convenience
-LAT = st.sidebar.number_input("Latitude", min_value=-90.0, max_value=90.0, value=9.605, step=0.001, format="%.3f")
-LON = st.sidebar.number_input("Longitude", min_value=-180.0, max_value=180.0, value=77.17, step=0.001, format="%.3f")
+# Track latitude and longitude in Streamlit's Session State to persist selections
+if "lat" not in st.session_state:
+    st.session_state.lat = 9.605
+if "lon" not in st.session_state:
+    st.session_state.lon = 77.170
+
+# --- Interactive Map Section ---
+st.sidebar.markdown("### 🗺️ Click on the Map to Select Location")
+
+# Create a baseline Folium Map centered around the current selection
+m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=3)
+
+# Add a marker indicating the active forecast position
+folium.Marker(
+    [st.session_state.lat, st.session_state.lon], 
+    popup="Selected Coordinates", 
+    tooltip="Active Location"
+).add_to(m)
+
+# Render map in sidebar and capture interaction data
+map_data = st_folium(m, height=250, width=None, key="map_selector")
+
+# Detect clicks and seamlessly update the coordinates
+if map_data and map_data.get("last_clicked"):
+    clicked_lat = round(map_data["last_clicked"]["lat"], 3)
+    clicked_lon = round(map_data["last_clicked"]["lng"], 3)
+    
+    # Trigger script rerun only if coordinates actually changed
+    if clicked_lat != st.session_state.lat or clicked_lon != st.session_state.lon:
+        st.session_state.lat = clicked_lat
+        st.session_state.lon = clicked_lon
+        st.rerun()
+
+# Readouts showing active coordinate values
+st.sidebar.info(f"📍 **Selected:** {st.session_state.lat}°N, {st.session_state.lon}°E")
 DAYS = st.sidebar.slider("Forecast Days", min_value=1, max_value=10, value=10)
 
 # -------------------------------------------------------------------------------
 # 3. CACHED DATA FETCHING
 # -------------------------------------------------------------------------------
-@st.cache_data(show_spinner="Fetching data from Open-Meteo ECMWF IFS...")
-def fetch_weather_data(lat, lon, days):
+@st.cache_data(show_spinner="Fetching data from Open-Meteo API...")
+def fetch_weather_data(lat, lon, days, model_id):
     base_url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
         "longitude": lon,
-        "models": "ecmwf_ifs025",
+        "models": model_id,
         "hourly": [
             "temperature_2m",
             "dew_point_2m",
@@ -59,31 +93,36 @@ def fetch_weather_data(lat, lon, days):
     
     response = requests.get(base_url, params=params).json()
     if "hourly" not in response:
-        st.error("Could not find 'hourly' data block. Check the API coordinates.")
+        st.error(f"Could not find 'hourly' data block for {model_id}. Check the API coordinates or parameters.")
         return None
         
     df = pd.DataFrame(response["hourly"])
     df["time"] = pd.to_datetime(df["time"])
     return df
 
-# Fetch data based on sidebar settings
-df = fetch_weather_data(LAT, LON, DAYS)
+# -------------------------------------------------------------------------------
+# 4. TAB SELECTION & CORE PLOT RENDER LOGIC
+# -------------------------------------------------------------------------------
+tab_ecmwf, tab_gfs = st.tabs(["🇪🇺 ECMWF IFS (0.25°)", "🇺🇸 GFS Seamless"])
 
-# -------------------------------------------------------------------------------
-# 4. PLOT GENERATION & RENDERING
-# -------------------------------------------------------------------------------
-if df is not None:
-    # We use st.spinner instead of a raw print statement
-    with st.spinner("Generating Meteogram Plot..."):
+models_config = {
+    "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS", "tab": tab_ecmwf},
+    "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
+}
+
+def render_meteogram(df, model_title):
+    if df is None:
+        return
+        
+    with st.spinner(f"Generating {model_title} Meteogram Plot..."):
         fig, axs = plt.subplots(
             7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
         )
 
-        # Layout adjustments
         plt.subplots_adjust(left=0.18, right=0.92, top=0.95, bottom=0.05, hspace=0.35)
 
         axs[0].set_title(
-            f"ECMWF IFS {DAYS}-day Forecast Meteogram for ({LON}E, {LAT}N)", fontsize=14, weight="bold"
+            f"{model_title} {DAYS}-day Forecast Meteogram for ({st.session_state.lon}E, {st.session_state.lat}N)", fontsize=14, weight="bold"
         )
 
         # PANEL 1: Sea Level Pressure
@@ -167,7 +206,7 @@ if df is not None:
         cbar.ax.yaxis.set_ticks_position('left')
         cbar.set_label("Cloud cover (%)", fontsize=10, weight="bold", labelpad=10)
 
-        # PANEL 7: 3hr Precipitation
+        # PANEL 7: Precipitation
         axs[6].bar(df["time"], df["precipitation"], width=0.04, color="lightgreen", label="Precip")
         axs[6].set_ylabel("Precip\n(mm)")
         total_precip = df["precipitation"].sum()
@@ -182,9 +221,14 @@ if df is not None:
             if ax != ax_cloud:
                 ax.grid(True, which="major", axis="y", color="lightgrey", linestyle=":", alpha=0.5)
 
-        # Crucial Streamlit line: Renders the matplotlib figure directly to the UI
         st.pyplot(fig)
         
-        # Optional: Add an expander to preview raw data below the plot
-        with st.expander("🔍 View Raw Forecast Data"):
+        with st.expander(f"🔍 View Raw {model_title} Forecast Data"):
             st.dataframe(df)
+
+# Loop through our configurations and assign plots to their respective tabs
+for model_key, cfg in models_config.items():
+    with cfg["tab"]:
+        model_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, cfg["api_id"])
+        if model_df is not None:
+            render_meteogram(model_df, cfg["title"])
