@@ -55,7 +55,8 @@ def on_city_change():
     if chosen != "Custom Location":
         st.session_state.lat, st.session_state.lon = MAJOR_CITIES[chosen]
 
-def on_coordinate_change():
+def sync_city_dropdown():
+    """Matches coordinates back to a city choice or sets it to Custom."""
     st.session_state.city_select = "Custom Location"
     for city, coords in MAJOR_CITIES.items():
         if coords and round(coords[0], 3) == round(st.session_state.lat, 3) and round(coords[1], 3) == round(st.session_state.lon, 3):
@@ -76,9 +77,17 @@ st.sidebar.selectbox(
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", key="lat", on_change=on_coordinate_change)
+    # FIX: Use 'value' instead of 'key' to allow safe programmatic updates
+    lat_input = st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", value=st.session_state.lat)
 with col2:
-    st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", key="lon", on_change=on_coordinate_change)
+    lon_input = st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", value=st.session_state.lon)
+
+# Detect if the user manually typed into the number boxes
+if lat_input != st.session_state.lat or lon_input != st.session_state.lon:
+    st.session_state.lat = lat_input
+    st.session_state.lon = lon_input
+    sync_city_dropdown()
+    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("##### 🗺️ Map Target Picker")
@@ -91,7 +100,6 @@ folium.Marker(
     tooltip="Active Target Node"
 ).add_to(m)
 
-# FIX: Explicitly target only "last_clicked" object changes to stop infinite re-runs and capture clicks reliably
 map_data = st_folium(
     m, 
     height=220, 
@@ -100,7 +108,7 @@ map_data = st_folium(
     returned_objects=["last_clicked"]
 )
 
-# Process map interaction securely
+# Process map interaction securely without state conflicts
 if map_data and map_data.get("last_clicked"):
     clicked_lat = round(map_data["last_clicked"]["lat"], 3)
     clicked_lon = round(map_data["last_clicked"]["lng"], 3)
@@ -108,7 +116,7 @@ if map_data and map_data.get("last_clicked"):
     if clicked_lat != st.session_state.lat or clicked_lon != st.session_state.lon:
         st.session_state.lat = clicked_lat
         st.session_state.lon = clicked_lon
-        on_coordinate_change()
+        sync_city_dropdown()
         st.rerun()
 
 DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
