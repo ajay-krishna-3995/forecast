@@ -77,7 +77,6 @@ st.sidebar.selectbox(
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    # FIX: Use 'value' instead of 'key' to allow safe programmatic updates
     lat_input = st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", value=st.session_state.lat)
 with col2:
     lon_input = st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", value=st.session_state.lon)
@@ -209,7 +208,7 @@ tab_home, tab_meteogram, tab_monsoon = st.tabs([
 # A. TAB LAYOUT: HOME (LIVE TELEMETRY & CHEMICAL AIR MONITORING)
 # ===============================================================================
 with tab_home:
-    st.subheader(f"📍{location_name}")
+    st.subheader(f"📍 {location_name}")
     st.write(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
     
     live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
@@ -219,21 +218,28 @@ with tab_home:
     if live_weather and live_aqi:
         met_col1, met_col2, met_col3, met_col4 = st.columns(4)
         
+        # Convert wind speed from km/h to m/s
+        wind_speed_ms = live_weather['wind_speed_10m'] / 3.6
+        
         with met_col1:
-            st.metric("Surface Temperature", f"{live_weather['temperature_2m']} °C")
-            st.caption("Standard 2-meter air sensor")
+            with st.container(border=True):
+                st.metric("🌡️ Surface Temperature", f"{live_weather['temperature_2m']} °C")
+                st.caption("Standard 2-meter air sensor")
             
         with met_col2:
-            st.metric("Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
-            st.caption("Water vapor mass ratio")
+            with st.container(border=True):
+                st.metric("💧 Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
+                st.caption("Water vapor mass ratio")
             
         with met_col3:
-            st.metric("Vector Wind Velocity", f"{live_weather['wind_speed_10m']} km/h")
-            st.caption("Standard 10-meter wind sensor anemometer")
+            with st.container(border=True):
+                st.metric("💨 Wind Velocity", f"{wind_speed_ms:.1f} m/s")
+                st.caption("Standard 10-meter anemometer")
             
         with met_col4:
-            st.metric("Current Gauge Rainfall", f"{live_weather['precipitation']} mm")
-            st.caption("Instantaneous rain rate")
+            with st.container(border=True):
+                st.metric("🌧️ Current Gauge Rainfall", f"{live_weather['precipitation']} mm")
+                st.caption("Instantaneous rain rate")
 
         st.markdown("---")
         
@@ -319,7 +325,7 @@ with tab_meteogram:
             axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
             axs[1].set_ylabel("CAPE\n(J/kg)", color="purple")
 
-            # PANEL 3: 10m Wind Speed & Gusts
+            # PANEL 3: 10m Wind Speed & Gusts (Note: already formatted to m/s here)
             axs[2].plot(df["time"], df["wind_speed_10m"] / 3.6, color="orange", label="Wind")
             axs[2].plot(df["time"], df["wind_gusts_10m"] / 3.6, color="crimson", linestyle=":", label="Gust")
             axs[2].set_ylabel("Wind\n(m/s)")
