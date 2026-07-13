@@ -10,6 +10,22 @@ from matplotlib.colors import BoundaryNorm, ListedColormap
 from scipy.ndimage import gaussian_filter
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
+from dotenv import load_dotenv
+import os
+
+# -------------------------------------------------------------------------------
+# 0. ENVIRONMENT SETUP - LOAD CREDENTIALS SECURELY
+# -------------------------------------------------------------------------------
+# Load environment variables from .env file
+load_dotenv()
+
+# Access GitHub credentials safely
+GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+# For Streamlit Cloud deployment, use st.secrets instead:
+# GITHUB_USERNAME = st.secrets.get("GITHUB_USERNAME")
+# GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
