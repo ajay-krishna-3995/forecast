@@ -24,7 +24,7 @@ st.set_page_config(
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
 st.title("⛈️ Weather, Air Quality & Monsoon Hub")
-st.markdown("A real-time meteorological portal built using open data pipelines.")
+st.markdown("Plan Better with Smarter Weather ☔")
 
 # Master database of preloaded global coordinate nodes
 MAJOR_CITIES = {
