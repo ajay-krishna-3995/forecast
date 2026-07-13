@@ -11,26 +11,35 @@ from scipy.ndimage import gaussian_filter
 def fetch_weather_data(lat, lon, days):
     """
     Fetch hourly forecast data from Open-Meteo ECMWF IFS model.
-    Returns a pandas DataFrame with a parsed 'time' column or raises ValueError on failure.
+    Uses exactly 5 low-level wind profiles natively supported by the API.
     """
     base_url = "https://api.open-meteo.com/v1/forecast"
+    
+    # Exactly 5 native low levels from surface up to the lower atmosphere
+    low_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
+    
+    hourly_vars = [
+        "temperature_2m",
+        "dew_point_2m",
+        "relative_humidity_2m",
+        "pressure_msl",
+        "cape",
+        "cloud_cover_low",
+        "cloud_cover_mid",
+        "cloud_cover_high",
+        "precipitation",
+    ]
+    
+    # Dynamically bundle the speed and direction for each requested level
+    for lvl in low_levels:
+        hourly_vars.append(f"wind_speed_{lvl}")
+        hourly_vars.append(f"wind_direction_{lvl}")
+
     params = {
         "latitude": lat,
         "longitude": lon,
         "models": "ecmwf_ifs025",
-        "hourly": [
-            "temperature_2m",
-            "dew_point_2m",
-            "relative_humidity_2m",
-            "pressure_msl",
-            "cape",
-            "wind_speed_10m",
-            "wind_gusts_10m",
-            "cloud_cover_low",
-            "cloud_cover_mid",
-            "cloud_cover_high",
-            "precipitation",
-        ],
+        "hourly": hourly_vars,
         "forecast_days": days,
         "timezone": "auto",
     }
@@ -48,45 +57,99 @@ def fetch_weather_data(lat, lon, days):
 
 def generate_meteogram_fig(df, lat, lon, days):
     """
-    Generate a matplotlib Figure containing the meteogram from a dataframe.
-    Returns (fig, axs).
+    Generates a production-grade forecast meteogram featuring a clean 
+    5-level low wind profile chart.
     """
     fig, axs = plt.subplots(
-        7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
+        7, 1, figsize=(15, 20), sharex=True, 
+        gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1.2, 2.5, 1]}
+    )
+    plt.subplots_adjust(left=0.18, right=0.95, top=0.94, bottom=0.06, hspace=0.22)
+
+    fig.suptitle(
+        f"ECMWF IFS Model {days}-Day Forecast Meteogram\nLocation: ({lon}°E, {lat}°N)", 
+        fontsize=16, weight="bold", color="#1a1a1a"
     )
 
-    # Layout adjustments
-    plt.subplots_adjust(left=0.18, right=0.92, top=0.95, bottom=0.05, hspace=0.35)
+    time_nums = mdates.date2num(df["time"])
+    label_font = {"weight": "bold", "fontsize": 12}
 
-    axs[0].set_title(
-        f"ECMWF IFS {days}-day Forecast Meteogram for ({lon}E, {lat}N)", fontsize=14, weight="bold"
-    )
+    # ----------------------------------------------------
+    # PANEL 1: Sea Level Pressure (SLP)
+    # ----------------------------------------------------
+    axs[0].plot(df["time"], df["pressure_msl"], color="#0055ff", linewidth=2.5)
+    axs[0].set_ylabel("SLP\n(hPa)", color="#0055ff", **label_font)
+    axs[0].tick_params(axis='y', labelcolor="#0055ff", labelsize=10)
 
-    # PANEL 1: Sea Level Pressure
-    axs[0].plot(df["time"], df["pressure_msl"], color="blue")
-    axs[0].set_ylabel("SLP\n(hPa)", color="blue")
-
+    # ----------------------------------------------------
     # PANEL 2: CAPE
-    axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
-    axs[1].set_ylabel("CAPE\n(J/kg)", color="purple")
+    # ----------------------------------------------------
+    axs[1].bar(df["time"], df["cape"], width=0.03, color="#993399", alpha=0.7)
+    axs[1].set_ylabel("CAPE\n(J/kg)", color="#993399", **label_font)
+    axs[1].tick_params(axis='y', labelcolor="#993399", labelsize=10)
 
-    # PANEL 3: 10m Wind Speed & Gusts
-    axs[2].plot(df["time"], df["wind_speed_10m"] / 3.6, color="orange", label="Wind")
-    axs[2].plot(df["time"], df["wind_gusts_10m"] / 3.6, color="crimson", linestyle=":", label="Gust")
-    axs[2].set_ylabel("Wind\n(m/s)")
-    axs[2].legend(loc="upper right", fontsize=8)
+    # ----------------------------------------------------
+    # PANEL 3: 5 LOW-LEVEL WIND PROFILE BARBS
+    # ----------------------------------------------------
+    ax_wind = axs[2]
+    
+    # Target levels matched precisely with what was fetched in API
+    api_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
+    display_labels = ["10m (Surface)", "100m", "1000 hPa (~110m)", "180m", "200m"]
+    
+    # Skips every 3 hours to prevent overlapping crowded barbs
+    skip = 3
+    barb_times = time_nums[::skip]
 
+    for idx, lvl_str in enumerate(api_levels):
+        speed_col = f"wind_speed_{lvl_str}"
+        dir_col = f"wind_direction_{lvl_str}"
+        
+        if speed_col in df.columns and dir_col in df.columns:
+            # Convert km/h to m/s for plotting standard meteorological barbs
+            speeds_ms = df[speed_col].fillna(0).astype(float).iloc[::skip] / 3.6
+            dirs = df[dir_col].fillna(0).astype(float).iloc[::skip]
+        else:
+            continue
+        
+        rad = np.deg2rad(dirs)
+        u_vec = -speeds_ms * np.sin(rad)
+        v_vec = -speeds_ms * np.cos(rad)
+        
+        y_pos = np.full_like(barb_times, idx)
+        ax_wind.barbs(barb_times, y_pos, u_vec, v_vec, length=6.5, color="#2c3e50", linewidth=1.0)
+
+    ax_wind.set_yticks(range(len(api_levels)))
+    ax_wind.set_yticklabels(display_labels, fontsize=10)
+    ax_wind.set_ylabel("Wind Profile\n(Low Levels)", color="#ff7700", **label_font)
+    ax_wind.tick_params(axis='y', labelcolor="#2c3e50")
+    ax_wind.set_ylim(-0.5, len(api_levels) - 0.5)
+
+    # ----------------------------------------------------
     # PANEL 4: 2m Relative Humidity
-    axs[3].plot(df["time"], df["relative_humidity_2m"], color="green")
-    axs[3].fill_between(df["time"], df["relative_humidity_2m"], 0, color="limegreen", alpha=0.3)
-    axs[3].set_ylabel("2m RH\n (%)")
+    # ----------------------------------------------------
+    axs[3].plot(df["time"], df["relative_humidity_2m"], color="#00aa00", linewidth=2)
+    axs[3].fill_between(df["time"], df["relative_humidity_2m"], 50, where=(df["relative_humidity_2m"] >= 50),
+                        color="#00cc00", alpha=0.5, interpolate=True)
+    axs[3].fill_between(df["time"], df["relative_humidity_2m"], 50, where=(df["relative_humidity_2m"] < 50),
+                        color="#aaffaa", alpha=0.3, interpolate=True)
+    axs[3].set_ylabel("2m RH\n(%)", color="#00aa00", **label_font)
     axs[3].set_ylim(0, 100)
+    axs[3].tick_params(axis='y', labelsize=10)
 
-    # PANEL 5: 2m Temperature
-    axs[4].plot(df["time"], df["temperature_2m"], color="red", linewidth=2)
-    axs[4].set_ylabel("Temp\n(°C)", color="red", weight="bold")
+    # ----------------------------------------------------
+    # PANEL 5: 2m Temperature & Dew Point
+    # ----------------------------------------------------
+    axs[4].plot(df["time"], df["temperature_2m"], color="#d32f2f", linewidth=2.5, label="2m Temp")
+    axs[4].plot(df["time"], df["dew_point_2m"], color="#1976d2", linewidth=1.5, linestyle="-.", label="Dew Pt")
+    axs[4].fill_between(df["time"], df["temperature_2m"], df["temperature_2m"].min() - 2, color="#ff9800", alpha=0.25)
+    axs[4].set_ylabel("Temp / DewPt\n(°C)", color="#d32f2f", **label_font)
+    axs[4].legend(loc="upper right", fontsize=10, framealpha=0.7)
+    axs[4].tick_params(axis='y', labelsize=10)
 
-    # PANEL 6: CLOUD COVER MATRIX
+    # ----------------------------------------------------
+    # PANEL 6: CLOUD COVER METRIC PROFILE
+    # ----------------------------------------------------
     ax_cloud = axs[5]
     num_time_steps = len(df["time"])
     alt_grid = np.linspace(0, 14, 100)
@@ -98,69 +161,70 @@ def generate_meteogram_fig(df, lat, lon, days):
         high = df["cloud_cover_high"].iloc[t]
 
         layer_profile = (
-            low * np.exp(-((alt_grid - 1.0) / 1.2) ** 2)
-            + mid * np.exp(-((alt_grid - 4.5) / 2.5) ** 2)
-            + high * np.exp(-((alt_grid - 9.5) / 3.0) ** 2)
+            low * np.exp(-((alt_grid - 1.2) / 1.2) ** 2)
+            + mid * np.exp(-((alt_grid - 5.0) / 2.5) ** 2)
+            + high * np.exp(-((alt_grid - 10.0) / 3.0) ** 2)
         )
         cloud_matrix[:, t] = np.clip(layer_profile, 0, 100)
 
-    cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.5, 1.0))
-    time_numbers = mdates.date2num(df["time"])
+    cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.2, 0.8))
 
-    cloud_colors = ["#ffffff", "#e0e0e0", "#b8b8b8", "#8c8c8c", "#686868", "#444444"]
-    cloud_bounds = [0, 10, 25, 50, 75, 90, 100]
+    cloud_colors = ["#ffffff", "#f0f2f5", "#d1d5db", "#9ca3af", "#6b7280", "#374151"]
+    cloud_bounds = [0, 10, 30, 50, 70, 90, 100]
     cmap_cloud = ListedColormap(cloud_colors)
     norm_cloud = BoundaryNorm(cloud_bounds, cmap_cloud.N)
 
     cloud_contour = ax_cloud.contourf(
-        time_numbers, alt_grid, cloud_matrix_smooth,
+        time_nums, alt_grid, cloud_matrix_smooth,
         levels=cloud_bounds, cmap=cmap_cloud, norm=norm_cloud, extend='max'
     )
 
-    ax_cloud.contour(
-        time_numbers, alt_grid, cloud_matrix_smooth,
-        levels=[15, 50, 85], colors="#555555", linewidths=0.5, alpha=0.6
-    )
-
     ax_cloud.set_ylim(0, 14)
-    ax_cloud.tick_params(axis='y', labelleft=True)
+    ax_cloud.set_ylabel("Altitude\n(km)", **label_font)
+    ax_cloud.tick_params(axis='y', labelsize=10)
+    
+    cbar_ax = fig.add_axes([0.04, 0.20, 0.02, 0.10])
+    cbar = fig.colorbar(cloud_contour, cax=cbar_ax, orientation='vertical', ticks=cloud_bounds)
+    cbar.ax.set_title("Cloud %", fontsize=9, weight="bold", pad=8)
+    cbar.ax.tick_params(labelsize=8)
 
-    for height in [1.5, 3.5, 6.0, 9.0]:
-        ax_cloud.axhline(height, color="dimgray", linestyle=":", linewidth=0.8, alpha=0.6)
-        ax_cloud.text(time_numbers[-1], height + 0.1, f"{height}", fontsize=8, color="black", ha="left")
+    ax_cloud.text(time_nums[0], 1.2, " Low-Level", fontsize=9, color="#111827", weight="bold", va="center")
+    ax_cloud.text(time_nums[0], 5.0, " Mid-Level", fontsize=9, color="#111827", weight="bold", va="center")
+    ax_cloud.text(time_nums[0], 10.0, " High-Level", fontsize=9, color="#111827", weight="bold", va="center")
 
-    ax_cloud.text(time_numbers[0] - 0.2, 1.0, "Low", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
-    ax_cloud.text(time_numbers[0] - 0.2, 4.5, "Mid", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
-    ax_cloud.text(time_numbers[0] - 0.2, 9.5, "High", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
-    ax_cloud.set_ylabel("Altitude\n(km)", color="black")
-
-    # PANEL 7: 3hr Precipitation
-    axs[6].bar(df["time"], df["precipitation"], width=0.04, color="lightgreen", label="Precip")
-    axs[6].set_ylabel("Precip\n(mm)")
+    # ----------------------------------------------------
+    # PANEL 7: Precipitation
+    # ----------------------------------------------------
+    axs[6].bar(df["time"], df["precipitation"], width=0.03, color="#00b0ff", edgecolor="#0091ea")
+    axs[6].set_ylabel("Precip\n(mm)", color="#0091ea", **label_font)
+    axs[6].tick_params(axis='y', labelsize=10)
+    
     total_precip = df["precipitation"].sum()
-    axs[6].text(0.95, 0.85, f"{days}-Day Total = {total_precip:.2f} mm", transform=axs[6].transAxes, ha="right", weight="bold")
+    axs[6].text(0.98, 0.70, f"{days}-Day Total = {total_precip:.1f} mm", 
+                transform=axs[6].transAxes, ha="right", weight="bold", color="#0077c2", fontsize=11)
 
-    # Global Axis Setup
+    # ----------------------------------------------------
+    # GLOBAL TIMELINE FORMATTING
+    # ----------------------------------------------------
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
-    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d\n%b"))
+    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d %b\n(%a)"))
 
     for ax in axs:
-        ax.grid(True, which="major", axis="x", color="grey", linestyle="--", alpha=0.4)
-        if ax != ax_cloud:
-            ax.grid(True, which="major", axis="y", color="lightgrey", linestyle=":", alpha=0.5)
+        ax.grid(True, which="major", axis="x", color="#aaaaaa", linestyle="--", linewidth=0.8, alpha=0.6)
+        if ax != ax_cloud and ax != ax_wind:
+            ax.grid(True, which="major", axis="y", color="#e0e0e0", linestyle=":", alpha=0.5)
+        
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(axis='x', labelsize=11)
 
     return fig
 
 
 if __name__ == "__main__":
-    # Simple CLI test when running as a script
-    import sys
-    lat = float(sys.argv[1]) if len(sys.argv) > 1 else 9.605
-    lon = float(sys.argv[2]) if len(sys.argv) > 2 else 77.17
-    days = int(sys.argv[3]) if len(sys.argv) > 3 else 3
-
-    print(f"Fetching data for {lat}, {lon} for {days} days...")
+    lat, lon, days = 9.605, 77.17, 3
+    print(f"Fetching 5 low-level wind variables for location ({lat}, {lon})...")
     df = fetch_weather_data(lat, lon, days)
     fig = generate_meteogram_fig(df, lat, lon, days)
-    fig.savefig("meteogram_preview.png")
-    print("Saved meteogram_preview.png")
+    fig.savefig("meteogram_multi_level.png", dpi=200)
+    print("Successfully generated plot with actual wind barbs!")
