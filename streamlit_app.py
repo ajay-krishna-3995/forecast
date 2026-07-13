@@ -31,6 +31,7 @@ MAJOR_CITIES = {
     "Custom Location": None,
     "Mumbai, India": (19.076, 72.878),
     "New Delhi, India": (28.614, 77.209),
+    "Kochi, India" : (9.9312,76.2673),
     "London, UK": (51.507, -0.128),
     "New York, USA": (40.713, -74.006),
     "Tokyo, Japan": (35.689, 139.692),
@@ -38,6 +39,7 @@ MAJOR_CITIES = {
     "Sydney, Australia": (-33.869, 151.209),
     "São Paulo, Brazil": (-23.551, -46.633),
     "Cape Town, South Africa": (-33.925, 18.424)
+    
 }
 
 # -------------------------------------------------------------------------------
@@ -418,9 +420,12 @@ with tab_meteogram:
                 ax_cloud.axhline(height, color="dimgray", linestyle=":", linewidth=0.8, alpha=0.6)
                 ax_cloud.text(time_numbers[-1], height + 0.1, f"{height}", fontsize=8, color="black", ha="left")
 
-            ax_cloud.text(time_numbers[0] - 0.2, 1.0, "Low", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
-            ax_cloud.text(time_numbers[0] - 0.2, 4.5, "Mid", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
-            ax_cloud.text(time_numbers[0] - 0.2, 9.5, "High", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
+            #ax_cloud.text(time_numbers[0] - 0.2, 1.0, "Low", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
+            #ax_cloud.text(time_numbers[0] - 0.2, 4.5, "Mid", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
+            #ax_cloud.text(time_numbers[0] - 0.2, 9.5, "High", fontsize=8, color="dimgray", weight="bold", ha="right", va="center")
+            ax_cloud.text(time_numbers[0], 1.2, " Low-Level", fontsize=9, color="#111827", weight="bold", va="center")
+            ax_cloud.text(time_numbers[0], 5.0, " Mid-Level", fontsize=9, color="#111827", weight="bold", va="center")
+            ax_cloud.text(time_numbers[0], 10.0, " High-Level", fontsize=9, color="#111827", weight="bold", va="center")
             ax_cloud.set_ylabel("Altitude\n(km)", color="black")
 
             fig.canvas.draw()
