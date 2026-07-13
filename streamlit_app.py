@@ -20,8 +20,8 @@ import os
 load_dotenv()
 
 # Access GitHub credentials safely
-GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_USERNAME = os.getenv("ajay-krishna-3995")
+GITHUB_TOKEN = os.getenv("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")
 
 # For Streamlit Cloud deployment, use st.secrets instead:
 # GITHUB_USERNAME = st.secrets.get("GITHUB_USERNAME")
