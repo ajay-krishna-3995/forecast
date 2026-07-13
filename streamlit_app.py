@@ -22,57 +22,119 @@ st.set_page_config(
 )
 
 # Run an auto-refresh every 60,000 milliseconds (1 minute).
-# The key keeps the counter persistent across manual clicks/interactions.
 st_autorefresh(interval=60000, key="meteogram_peer_refresh")
 
 st.title("⛈️ Weather Meteogram")
 st.markdown("by Open-Meteo API.")
 
-# -------------------------------------------------------------------------------
-# 2. SIDEBAR CONTROLS & INTERACTIVE MAP SELECTOR
-# -------------------------------------------------------------------------------
-st.sidebar.header("Location\nForecast Settings")
+# Predefined dictionary of major global cities
+MAJOR_CITIES = {
+    "Custom Location": None,
+    "New York, USA": (40.713, -74.006),
+    "London, UK": (51.507, -0.128),
+    "Tokyo, Japan": (35.689, 139.692),
+    "Paris, France": (48.857, 2.352),
+    "Mumbai, India": (19.076, 72.878),
+    "Sydney, Australia": (-33.869, 151.209),
+    "Cairo, Egypt": (30.044, 31.236),
+    "São Paulo, Brazil": (-23.551, -46.633),
+    "Cape Town, South Africa": (-33.925, 18.424)
+}
 
-# Track latitude and longitude in Streamlit's Session State to persist selections
+# -------------------------------------------------------------------------------
+# 2. SESSION STATE SYNCHRONIZATION
+# -------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state.lat = 9.605
 if "lon" not in st.session_state:
     st.session_state.lon = 77.170
+if "city_select" not in st.session_state:
+    st.session_state.city_select = "Custom Location"
 
-# --- Interactive Map Section ---
+# Callback functions to sync controls when changed manually
+def on_city_change():
+    chosen = st.session_state.city_select
+    if chosen != "Custom Location":
+        st.session_state.lat, st.session_state.lon = MAJOR_CITIES[chosen]
+
+def on_coordinate_change():
+    # If manual coords match a major city exactly, select it, otherwise set to Custom
+    st.session_state.city_select = "Custom Location"
+    for city, coords in MAJOR_CITIES.items():
+        if coords and round(coords[0], 3) == round(st.session_state.lat, 3) and round(coords[1], 3) == round(st.session_state.lon, 3):
+            st.session_state.city_select = city
+            break
+
+# -------------------------------------------------------------------------------
+# 3. SIDEBAR CONTROLS & INTERACTIVE MAP SELECTOR
+# -------------------------------------------------------------------------------
+st.sidebar.header("Location & Forecast Settings")
+
+# Feature 1: Major Cities Dropdown Selector
+st.sidebar.selectbox(
+    "🌆 Select a Major City", 
+    options=list(MAJOR_CITIES.keys()), 
+    key="city_select",
+    on_change=on_city_change
+)
+
+# Feature 2: Manual Latitude and Longitude Entry
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    st.number_input("Latitude (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", key="lat", on_change=on_coordinate_change)
+with col2:
+    st.number_input("Longitude (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", key="lon", on_change=on_coordinate_change)
+
+# Interactive Map Section
 st.sidebar.markdown("### 🗺️ Click on the Map to Select Location")
 
-# Create a baseline Folium Map centered around the current selection
-m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=3)
-
-# Add a marker indicating the active forecast position
+# Dynamic centering on active coordinates
+m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=4)
 folium.Marker(
     [st.session_state.lat, st.session_state.lon], 
     popup="Selected Coordinates", 
     tooltip="Active Location"
 ).add_to(m)
 
-# Render map in sidebar and capture interaction data
 map_data = st_folium(m, height=250, width=None, key="map_selector")
 
-# Detect clicks and seamlessly update the coordinates
+# Handle Map click interactions
 if map_data and map_data.get("last_clicked"):
     clicked_lat = round(map_data["last_clicked"]["lat"], 3)
     clicked_lon = round(map_data["last_clicked"]["lng"], 3)
     
-    # Trigger script rerun only if coordinates actually changed
     if clicked_lat != st.session_state.lat or clicked_lon != st.session_state.lon:
         st.session_state.lat = clicked_lat
         st.session_state.lon = clicked_lon
+        on_coordinate_change()  # Sync dropdown selection status
         st.rerun()
 
-# Readouts showing active coordinate values
-st.sidebar.info(f"📍 **Selected:** {st.session_state.lat}°N, {st.session_state.lon}°E")
 DAYS = st.sidebar.slider("Forecast Days", min_value=1, max_value=10, value=10)
 
 # -------------------------------------------------------------------------------
-# 3. CACHED DATA FETCHING
+# 4. CACHED DATA & REVERSE GEOCODING FETCHING
 # -------------------------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def get_location_name(lat, lon):
+    """Fetches human-readable place name using Open-Meteo's Geocoding API."""
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=is_day&timezone=auto"
+        # Using open-meteo fallback naming technique or just manual label if it's explicitly chosen
+        if st.session_state.city_select != "Custom Location":
+            return st.session_state.city_select
+        
+        # Simple lookup fallback to give context
+        geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&zoom=10"
+        headers = {'User-Agent': 'WeatherMeteogramApp/1.0'}
+        res = requests.get(geo_url, headers=headers, timeout=3).json()
+        if "display_name" in res:
+            parts = res["display_name"].split(",")
+            # Extract city/town and country
+            return f"{parts[0].strip()}, {parts[-1].strip()}"
+    except Exception:
+        pass
+    return f"Custom Coordinates ({lat}°N, {lon}°E)"
+
 @st.cache_data(show_spinner="Fetching data from Open-Meteo API...")
 def fetch_weather_data(lat, lon, days, model_id):
     base_url = "https://api.open-meteo.com/v1/forecast"
@@ -107,7 +169,7 @@ def fetch_weather_data(lat, lon, days, model_id):
     return df
 
 # -------------------------------------------------------------------------------
-# 4. TAB SELECTION & CORE PLOT RENDER LOGIC
+# 5. TAB SELECTION & CORE PLOT RENDER LOGIC
 # -------------------------------------------------------------------------------
 tab_ecmwf, tab_gfs = st.tabs(["🇪🇺 ECMWF IFS (0.25°)", "🇺🇸 GFS Seamless"])
 
@@ -120,15 +182,20 @@ def render_meteogram(df, model_title):
     if df is None:
         return
         
+    # Feature 3: Dynamic Location Name Extraction
+    location_name = get_location_name(st.session_state.lat, st.session_state.lon)
+
     with st.spinner(f"Generating {model_title} Meteogram Plot..."):
         fig, axs = plt.subplots(
             7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
         )
 
-        plt.subplots_adjust(left=0.18, right=0.92, top=0.95, bottom=0.05, hspace=0.35)
+        plt.subplots_adjust(left=0.18, right=0.92, top=0.93, bottom=0.05, hspace=0.35)
 
+        # Embedded location title over the Meteogram Plot
         axs[0].set_title(
-            f"{model_title} {DAYS}-day Forecast Meteogram for ({st.session_state.lon}E, {st.session_state.lat}N)", fontsize=14, weight="bold"
+            f"{model_title} {DAYS}-Day Meteogram\n📍 Location: {location_name}", 
+            fontsize=15, weight="bold", pad=15
         )
 
         # PANEL 1: Sea Level Pressure
