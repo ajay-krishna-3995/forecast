@@ -171,15 +171,25 @@ def fetch_air_quality(lat, lon):
 @st.cache_data(show_spinner="Compiling Multi-Model Core Vectors...")
 def fetch_weather_data(lat, lon, days, model_id):
     base_url = "https://api.open-meteo.com/v1/forecast"
+    
+    # 5 low levels natively supported by the Open-Meteo models
+    low_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
+    
+    hourly_vars = [
+        "temperature_2m", "dew_point_2m", "relative_humidity_2m",
+        "pressure_msl", "cape", "wind_gusts_10m",
+        "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "precipitation",
+    ]
+    
+    for lvl in low_levels:
+        hourly_vars.append(f"wind_speed_{lvl}")
+        hourly_vars.append(f"wind_direction_{lvl}")
+
     params = {
         "latitude": lat,
         "longitude": lon,
         "models": model_id,
-        "hourly": [
-            "temperature_2m", "dew_point_2m", "relative_humidity_2m",
-            "pressure_msl", "cape", "wind_speed_10m", "wind_gusts_10m",
-            "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "precipitation",
-        ],
+        "hourly": hourly_vars,
         "forecast_days": days,
         "timezone": "auto",
     }
@@ -308,7 +318,7 @@ with tab_meteogram:
 
         with st.spinner(f"Generating {model_title} Meteogram Plot..."):
             fig, axs = plt.subplots(
-                7, 1, figsize=(14, 17), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
+                7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1, 2.8, 1.2]}
             )
             plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
 
@@ -325,11 +335,36 @@ with tab_meteogram:
             axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
             axs[1].set_ylabel("CAPE\n(J/kg)", color="purple")
 
-            # PANEL 3: 10m Wind Speed & Gusts (Note: already formatted to m/s here)
-            axs[2].plot(df["time"], df["wind_speed_10m"] / 3.6, color="orange", label="Wind")
-            axs[2].plot(df["time"], df["wind_gusts_10m"] / 3.6, color="crimson", linestyle=":", label="Gust")
-            axs[2].set_ylabel("Wind\n(m/s)")
-            axs[2].legend(loc="upper right", fontsize=8)
+            # PANEL 3: 5-LEVEL WIND PROFILE BARBS
+            ax_wind = axs[2]
+            api_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
+            display_labels = ["10m (Surface)", "100m", "1000 hPa (~110m)", "180m", "200m"]
+            
+            time_numbers = mdates.date2num(df["time"])
+            skip = 3  # Thins wind barbs every 3 hours to prevent overcrowding
+            barb_times = time_numbers[::skip]
+
+            for idx, lvl_str in enumerate(api_levels):
+                speed_col = f"wind_speed_{lvl_str}"
+                dir_col = f"wind_direction_{lvl_str}"
+                
+                if speed_col in df.columns and dir_col in df.columns:
+                    speeds_ms = df[speed_col].fillna(0).astype(float).iloc[::skip] / 3.6
+                    dirs = df[dir_col].fillna(0).astype(float).iloc[::skip]
+                else:
+                    continue
+                
+                rad = np.deg2rad(dirs)
+                u_vec = -speeds_ms * np.sin(rad)
+                v_vec = -speeds_ms * np.cos(rad)
+                
+                y_pos = np.full_like(barb_times, idx)
+                ax_wind.barbs(barb_times, y_pos, u_vec, v_vec, length=6.0, color="#2c3e50", linewidth=0.9)
+
+            ax_wind.set_yticks(range(len(api_levels)))
+            ax_wind.set_yticklabels(display_labels, fontsize=9)
+            ax_wind.set_ylabel("Wind Profile\n(Low Levels)", color="#ff7700", weight="bold")
+            ax_wind.set_ylim(-0.5, len(api_levels) - 0.5)
 
             # PANEL 4: 2m Relative Humidity
             axs[3].plot(df["time"], df["relative_humidity_2m"], color="green")
@@ -360,7 +395,6 @@ with tab_meteogram:
                 cloud_matrix[:, t] = np.clip(layer_profile, 0, 100)
 
             cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.5, 1.0))
-            time_numbers = mdates.date2num(df["time"])
 
             cloud_colors = ["#ffffff", "#e0e0e0", "#b8b8b8", "#8c8c8c", "#686868", "#444444"]
             cloud_bounds = [0, 10, 25, 50, 75, 90, 100]
@@ -409,7 +443,7 @@ with tab_meteogram:
 
             for ax in axs:
                 ax.grid(True, which="major", axis="x", color="grey", linestyle="--", alpha=0.4)
-                if ax != ax_cloud:
+                if ax != ax_cloud and ax != ax_wind:
                     ax.grid(True, which="major", axis="y", color="lightgrey", linestyle=":", alpha=0.5)
 
             st.pyplot(fig)
@@ -427,7 +461,7 @@ with tab_meteogram:
 # C. TAB LAYOUT: MONSOON DIAGNOSTIC (HYDRO-CLIMATOLOGY MATRIX)
 # ===============================================================================
 with tab_monsoon:
-    st.subheader(f"🌧️ Monsoon  (❌Page yet to update❌")
+    st.subheader(f"🌧️ Monsoon  (❌Page yet to update❌)")
     st.markdown(f"**Target Geography Context:** {location_name}")
     
     monsoon_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, "ecmwf_ifs025")
