@@ -200,9 +200,9 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 # 5. WORKSPACE TAB COMPOSITIONS
 # -------------------------------------------------------------------------------
 tab_home, tab_meteogram, tab_monsoon = st.tabs([
-    "🏡 Home (Live Update)", 
-    "📈 Meteogram Analytics", 
-    "🌧️ Monsoon Diagnostic"
+    "🏡 Home", 
+    "📈 Meteogram", 
+    "🌧️ Monsoon"
 ])
 
 # ===============================================================================
@@ -240,7 +240,7 @@ with tab_home:
         dash_col1, dash_col2 = st.columns([1, 1])
         
         with dash_col1:
-            st.markdown("#### 🌧️ Hydro-Meteorological Alerts (Next 24 Hours)")
+            st.markdown("#### 🌧️ Meteorological Alerts (Next 24 Hours)")
             if forecast_alert_df is not None:
                 total_24h_rain = forecast_alert_df["precipitation"].sum()
                 peak_24h_rate = forecast_alert_df["precipitation"].max()
