@@ -15,7 +15,7 @@ from streamlit_autorefresh import st_autorefresh
 # 1. STREAMLIT PAGE SETUP
 # -------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon Hub",
+    page_title="Weather, Air Quality & Monsoon",
     page_icon="⛈️",
     layout="wide"
 )
