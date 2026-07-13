@@ -9,47 +9,46 @@ import streamlit as st
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from scipy.ndimage import gaussian_filter
 from streamlit_folium import st_folium
-# IMPORT THE AUTOREFRESH UTILITY
 from streamlit_autorefresh import st_autorefresh
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
 # -------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Weather & Monsoon Tracker",
+    page_title="Weather, Air Quality & Monsoon Hub",
     page_icon="⛈️",
     layout="wide"
 )
 
-# Run an auto-refresh every 60,000 milliseconds (1 minute).
-st_autorefresh(interval=60000, key="meteogram_peer_refresh")
+# Global 1-minute auto-refresh to keep API queries fresh
+st_autorefresh(interval=60000, key="weather_hub_refresh")
 
-st.title("⛈️ Weather & Monsoon Tracker")
-st.markdown("Powered by Open-Meteo API.")
+st.title("⛈️ Weather, Air Quality & Monsoon Hub")
+st.markdown("A real-time meteorological portal built using open data pipelines.")
 
-# Predefined dictionary of major global cities
+# Master database of preloaded global coordinate nodes
 MAJOR_CITIES = {
     "Custom Location": None,
-    "New York, USA": (40.713, -74.006),
+    "Mumbai, India": (19.076, 72.878),
+    "New Delhi, India": (28.614, 77.209),
     "London, UK": (51.507, -0.128),
+    "New York, USA": (40.713, -74.006),
     "Tokyo, Japan": (35.689, 139.692),
     "Paris, France": (48.857, 2.352),
-    "Mumbai, India": (19.076, 72.878),
     "Sydney, Australia": (-33.869, 151.209),
-    "Cairo, Egypt": (30.044, 31.236),
     "São Paulo, Brazil": (-23.551, -46.633),
     "Cape Town, South Africa": (-33.925, 18.424)
 }
 
 # -------------------------------------------------------------------------------
-# 2. SESSION STATE SYNCHRONIZATION
+# 2. STATE MANAGER & BI-DIRECTIONAL LOCATION SYNCHRONIZATION
 # -------------------------------------------------------------------------------
 if "lat" not in st.session_state:
-    st.session_state.lat = 9.605
+    st.session_state.lat = 19.076  # Defaulting to Mumbai for an active monsoon node
 if "lon" not in st.session_state:
-    st.session_state.lon = 77.170
+    st.session_state.lon = 72.878
 if "city_select" not in st.session_state:
-    st.session_state.city_select = "Custom Location"
+    st.session_state.city_select = "Mumbai, India"
 
 def on_city_change():
     chosen = st.session_state.city_select
@@ -64,12 +63,12 @@ def on_coordinate_change():
             break
 
 # -------------------------------------------------------------------------------
-# 3. SIDEBAR CONTROLS & INTERACTIVE MAP SELECTOR
+# 3. GLOBAL SIDEBAR CONTROLS (UNIVERSAL TARGET SELECTOR)
 # -------------------------------------------------------------------------------
-st.sidebar.header("Location & Forecast Settings")
+st.sidebar.header("📍 Location Navigator")
 
 st.sidebar.selectbox(
-    "🌆 Select a Major City", 
+    "🌆 Quick Select Station", 
     options=list(MAJOR_CITIES.keys()), 
     key="city_select",
     on_change=on_city_change
@@ -77,20 +76,22 @@ st.sidebar.selectbox(
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    st.number_input("Latitude (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", key="lat", on_change=on_coordinate_change)
+    st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", key="lat", on_change=on_coordinate_change)
 with col2:
-    st.number_input("Longitude (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", key="lon", on_change=on_coordinate_change)
+    st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", key="lon", on_change=on_coordinate_change)
 
-st.sidebar.markdown("### 🗺️ Click on the Map to Select Location")
+st.sidebar.markdown("---")
+st.sidebar.markdown("##### 🗺️ Map Target Picker")
 
-m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=4)
+# Build and process the interactive base layer map
+m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=5)
 folium.Marker(
     [st.session_state.lat, st.session_state.lon], 
-    popup="Selected Coordinates", 
-    tooltip="Active Location"
+    popup="Monitored Station", 
+    tooltip="Active Target Node"
 ).add_to(m)
 
-map_data = st_folium(m, height=250, width=None, key="map_selector")
+map_data = st_folium(m, height=220, width=None, key="sidebar_map_selector")
 
 if map_data and map_data.get("last_clicked"):
     clicked_lat = round(map_data["last_clicked"]["lat"], 3)
@@ -102,28 +103,59 @@ if map_data and map_data.get("last_clicked"):
         on_coordinate_change()
         st.rerun()
 
-DAYS = st.sidebar.slider("Forecast Days", min_value=1, max_value=10, value=10)
+DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
 
 # -------------------------------------------------------------------------------
-# 4. CACHED DATA & REVERSE GEOCODING FETCHING
+# 4. DATA RETRIEVAL PIPELINES (WEATHER, FORECAST & AIR QUALITY)
 # -------------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def get_location_name(lat, lon):
     try:
         if st.session_state.city_select != "Custom Location":
             return st.session_state.city_select
-        
         geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&zoom=10"
-        headers = {'User-Agent': 'WeatherMeteogramApp/1.0'}
+        headers = {'User-Agent': 'WeatherMeteogramApp/2.0'}
         res = requests.get(geo_url, headers=headers, timeout=3).json()
         if "display_name" in res:
             parts = res["display_name"].split(",")
             return f"{parts[0].strip()}, {parts[-1].strip()}"
     except Exception:
         pass
-    return f"Custom Coordinates ({lat}°N, {lon}°E)"
+    return f"Node ({lat}°N, {lon}°E)"
 
-@st.cache_data(show_spinner="Fetching data from Open-Meteo API...")
+@st.cache_data(show_spinner="Accessing Live Atmospheric Metrics...")
+def fetch_live_metrics(lat, lon):
+    """Pulls current live instantaneous metrics from Open-Meteo's standard forecast station."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "precipitation"],
+        "timezone": "auto"
+    }
+    try:
+        res = requests.get(url, params=params).json()
+        return res.get("current", None)
+    except Exception:
+        return None
+
+@st.cache_data(show_spinner="Accessing Chemical Dispersion Model...")
+def fetch_air_quality(lat, lon):
+    """Pulls live surface-level chemical compound loads from the Open-Meteo Air Quality API."""
+    url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current": ["european_aqi", "pm2_5", "pm10", "nitrogen_dioxide", "ozone", "sulphur_dioxide"],
+        "timezone": "auto"
+    }
+    try:
+        res = requests.get(url, params=params).json()
+        return res.get("current", None)
+    except Exception:
+        return None
+
+@st.cache_data(show_spinner="Compiling Multi-Model Core Vectors...")
 def fetch_weather_data(lat, lon, days, model_id):
     base_url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -131,43 +163,125 @@ def fetch_weather_data(lat, lon, days, model_id):
         "longitude": lon,
         "models": model_id,
         "hourly": [
-            "temperature_2m",
-            "dew_point_2m",
-            "relative_humidity_2m",
-            "pressure_msl",
-            "cape",
-            "wind_speed_10m",
-            "wind_gusts_10m",
-            "cloud_cover_low",
-            "cloud_cover_mid",
-            "cloud_cover_high",
-            "precipitation",
+            "temperature_2m", "dew_point_2m", "relative_humidity_2m",
+            "pressure_msl", "cape", "wind_speed_10m", "wind_gusts_10m",
+            "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "precipitation",
         ],
         "forecast_days": days,
         "timezone": "auto",
     }
-    
-    response = requests.get(base_url, params=params).json()
-    if "hourly" not in response:
-        st.error(f"Could not find 'hourly' data block for {model_id}. Check the API coordinates or parameters.")
+    try:
+        response = requests.get(base_url, params=params).json()
+        if "hourly" not in response:
+            return None
+        df = pd.DataFrame(response["hourly"])
+        df["time"] = pd.to_datetime(df["time"])
+        return df
+    except Exception:
         return None
-        
-    df = pd.DataFrame(response["hourly"])
-    df["time"] = pd.to_datetime(df["time"])
-    return df
 
-# Get active location name once for universal application use
+# Compile location profiles prior to rendering layouts
 location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 
 # -------------------------------------------------------------------------------
-# 5. MAIN PAGE TOP-LEVEL TABS
+# 5. WORKSPACE TAB COMPOSITIONS
 # -------------------------------------------------------------------------------
-main_tab_meteogram, main_tab_monsoon = st.tabs(["📈 Meteogram", "🌧️ Monsoon Update"])
+tab_home, tab_meteogram, tab_monsoon = st.tabs([
+    "🏡 Home (Live Update)", 
+    "📈 Meteogram Analytics", 
+    "🌧️ Monsoon Diagnostic"
+])
 
 # ===============================================================================
-# TAB: METEOGRAM VIEW
+# A. TAB LAYOUT: HOME (LIVE TELEMETRY & CHEMICAL AIR MONITORING)
 # ===============================================================================
-with main_tab_meteogram:
+with tab_home:
+    st.subheader(f"📍 Active Station Feed: {location_name}")
+    st.write(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
+    
+    # Query data networks
+    live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
+    live_aqi = fetch_air_quality(st.session_state.lat, st.session_state.lon)
+    forecast_alert_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, 1, "ecmwf_ifs025")
+
+    if live_weather and live_aqi:
+        # Layout real-time panels using 4 distinct grid cards
+        met_col1, met_col2, met_col3, met_col4 = st.columns(4)
+        
+        with met_col1:
+            st.metric("Surface Temperature", f"{live_weather['temperature_2m']} °C")
+            st.caption("Standard 2-meter air sensor")
+            
+        with met_col2:
+            st.metric("Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
+            st.caption("Water vapor mass ratio")
+            
+        with met_col3:
+            st.metric("Vector Wind Velocity", f"{live_weather['wind_speed_10m']} km/h")
+            st.caption("Standard 10-meter wind sensor anemometer")
+            
+        with met_col4:
+            st.metric("Current Gauge Rainfall", f"{live_weather['precipitation']} mm")
+            st.caption("Instantaneous rain rate")
+
+        st.markdown("---")
+        
+        # Primary Grid Block Splitter
+        dash_col1, dash_col2 = st.columns([1, 1])
+        
+        with dash_col1:
+            st.markdown("#### 🌧️ Hydro-Meteorological Alerts (Next 24 Hours)")
+            if forecast_alert_df is not None:
+                total_24h_rain = forecast_alert_df["precipitation"].sum()
+                peak_24h_rate = forecast_alert_df["precipitation"].max()
+                
+                # Dynamic Alert classification sequence
+                if total_24h_rain > 75 or peak_24h_rate > 20:
+                    st.error(f"🔴 **CRITICAL RAINFALL ALERT:** Torrential output expected inside 24hrs ({total_24h_rain:.1f} mm total). High probability of extreme runoff or flash urban water collection.")
+                elif total_24h_rain > 25 or peak_24h_rate > 8:
+                    st.warning(f"🟡 **ADVISORY RAINFALL ALERT:** Moderately intense precipitation steps tracking nearby. Total 24h volume estimated near {total_24h_rain:.1f} mm.")
+                elif total_24h_rain > 0.2:
+                    st.info(f"🔵 **ROUTINE PRECIPITATION:** Light convective activity or intermittent monsoonal showers tracked. Expected footprint: {total_24h_rain:.1f} mm.")
+                else:
+                    st.success("🟢 **ZERO RAIN ALERT:** Clear pathing. No active measurable precipitation signals within the standard 24-hour diagnostic track.")
+            else:
+                st.info("Unable to parse predictive 24h precipitation profiles.")
+
+        with dash_col2:
+            st.markdown("#### 🍃 Live Air Quality Index (AQI)")
+            
+            # Extract standard indexes
+            eaqi_val = live_aqi["european_aqi"]
+            pm25_val = live_aqi["pm2_5"]
+            pm10_val = live_aqi["pm10"]
+            
+            # Map structural descriptive text ranges for the Index
+            if eaqi_val <= 20:
+                aqi_status, aqi_color = "Excellent", "🟢"
+            elif eaqi_val <= 40:
+                aqi_status, aqi_color = "Fair", "🟡"
+            elif eaqi_val <= 60:
+                aqi_status, aqi_color = "Moderate", "🟠"
+            elif eaqi_val <= 80:
+                aqi_status, aqi_color = "Poor", "🔴"
+            else:
+                aqi_status, aqi_color = "Extremely Poor", "☠️"
+                
+            st.markdown(f"##### Overall Assessment: {aqi_color} **{aqi_status}** (Index Score: {eaqi_val})")
+            
+            # Print breakdown of raw particulate parameters
+            aqi_table_df = pd.DataFrame({
+                "Aerosol Mass Component": ["Fine Particulates (PM2.5)", "Coarse Particulates (PM10)", "Nitrogen Dioxide (NO₂)", "Ozone (O₃)", "Sulfur Dioxide (SO₂)"],
+                "Concentration Density": [f"{pm25_val} µg/m³", f"{pm10_val} µg/m³", f"{live_aqi['nitrogen_dioxide']} µg/m³", f"{live_aqi['ozone']} µg/m³", f"{live_aqi['sulphur_dioxide']} µg/m³"]
+            })
+            st.table(aqi_table_df)
+    else:
+        st.error("Live metrics data pipeline returned empty blocks. Re-check telemetry routing status or verify connectivity.")
+
+# ===============================================================================
+# B. TAB LAYOUT: METEOGRAM ANALYTICS (DEEP VERTICAL ATMOSPHERIC PLOT)
+# ===============================================================================
+with tab_meteogram:
     tab_ecmwf, tab_gfs = st.tabs(["🇪🇺 ECMWF IFS (0.25°)", "🇺🇸 GFS Seamless"])
 
     models_config = {
@@ -177,17 +291,18 @@ with main_tab_meteogram:
 
     def render_meteogram(df, model_title):
         if df is None:
+            st.error("Data tracking failure on core vector frame.")
             return
 
         with st.spinner(f"Generating {model_title} Meteogram Plot..."):
             fig, axs = plt.subplots(
-                7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
+                7, 1, figsize=(14, 17), sharex=True, gridspec_kw={"height_ratios": [1, 1, 1, 1, 1, 2.8, 1.2]}
             )
-            plt.subplots_adjust(left=0.18, right=0.92, top=0.93, bottom=0.05, hspace=0.35)
+            plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
 
             axs[0].set_title(
-                f"{model_title} {DAYS}-Day Meteogram\n📍 Location: {location_name}", 
-                fontsize=15, weight="bold", pad=15
+                f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", 
+                fontsize=14, weight="bold", pad=12
             )
 
             # PANEL 1: Sea Level Pressure
@@ -277,7 +392,7 @@ with main_tab_meteogram:
             total_precip = df["precipitation"].sum()
             axs[6].text(0.95, 0.85, f"{DAYS}-Day Total = {total_precip:.2f} mm", transform=axs[6].transAxes, ha="right", weight="bold")
 
-            # Global Axis Setup
+            # Axis formatting rules
             axs[-1].xaxis.set_major_locator(mdates.DayLocator())
             axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d\n%b"))
 
@@ -288,10 +403,10 @@ with main_tab_meteogram:
 
             st.pyplot(fig)
             
-            with st.expander(f"🔍 View Raw {model_title} Forecast Data"):
+            with st.expander(f"🔍 View Raw Forecast Array ({model_title})"):
                 st.dataframe(df)
 
-    # Loop and render nested tabs inside the Meteogram view
+    # Map configurations onto nested render tabs
     for model_key, cfg in models_config.items():
         with cfg["tab"]:
             model_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, cfg["api_id"])
@@ -299,65 +414,59 @@ with main_tab_meteogram:
                 render_meteogram(model_df, cfg["title"])
 
 # ===============================================================================
-# TAB: MONSOON UPDATE VIEW
+# C. TAB LAYOUT: MONSOON DIAGNOSTIC (HYDRO-CLIMATOLOGY MATRIX)
 # ===============================================================================
-with main_tab_monsoon:
-    st.subheader(f"🌧️ Monsoon & Precipitation Diagnostics")
-    st.markdown(f"**Current Checkpoint:** {location_name}")
+with tab_monsoon:
+    st.subheader(f"🌧️ Hydro-Climatological Monsoon Evaluation")
+    st.markdown(f"**Target Geography Context:** {location_name}")
     
-    # Re-fetch data using standard ensemble baseline (ECMWF) for analysis
+    # Run a high-resolution baseline analysis track using ECMWF model defaults
     monsoon_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, "ecmwf_ifs025")
     
     if monsoon_df is not None:
-        # Calculate dynamic metrics for monsoon observation
         total_rain = monsoon_df["precipitation"].sum()
         max_hourly_intensity = monsoon_df["precipitation"].max()
         rainy_hours = (monsoon_df["precipitation"] > 0.1).sum()
         avg_cape = monsoon_df["cape"].mean()
         avg_rh = monsoon_df["relative_humidity_2m"].mean()
         
-        # Display high-level diagnostic metrics cards
+        # Display analysis summary metrics
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("Cumulative Rainfall", f"{total_rain:.1f} mm", help="Total accumulated precipitation across the forecast horizon.")
-        m_col2.metric("Peak Hourly Rate", f"{max_hourly_intensity:.1f} mm/hr", help="Maximum intensity recorded in a single hour.")
-        m_col3.metric("Rain Duration", f"{rainy_hours} hours", help="Total hours with measurable precipitation (> 0.1 mm).")
-        m_col4.metric("Mean Column Instability", f"{avg_cape:.0f} J/kg", help="Average Convective Available Potential Energy.")
+        m_col1.metric("Cumulative Mass Footprint", f"{total_rain:.1f} mm")
+        m_col2.metric("Peak Precipitation Surge", f"{max_hourly_intensity:.1f} mm/h")
+        m_col3.metric("Rain Event Intersections", f"{rainy_hours} hrs")
+        m_col4.metric("Convective Base Instability", f"{avg_cape:.0f} J/kg")
         
         st.markdown("---")
         
-        # Diagnostic Visualizations Section
         v_col1, v_col2 = st.columns([2, 1])
         
         with v_col1:
-            st.markdown("##### 📈 Accumulated Rainfall Curve")
-            # Build clean time-series visualization for total accumulation
+            st.markdown("##### 📈 Mass Accumulation Profile Curve")
             monsoon_df["accumulated_precip"] = monsoon_df["precipitation"].cumsum()
             
-            fig_acc, ax_acc = plt.subplots(figsize=(10, 4.5))
-            ax_acc.plot(monsoon_df["time"], monsoon_df["accumulated_precip"], color="teal", linewidth=2.5, label="Accumulation")
+            fig_acc, ax_acc = plt.subplots(figsize=(10, 4.2))
+            ax_acc.plot(monsoon_df["time"], monsoon_df["accumulated_precip"], color="teal", linewidth=2.5)
             ax_acc.fill_between(monsoon_df["time"], monsoon_df["accumulated_precip"], color="teal", alpha=0.15)
-            ax_acc.set_ylabel("Total Rain (mm)", weight="bold")
+            ax_acc.set_ylabel("Accumulated Rain Mass (mm)", weight="bold")
             ax_acc.grid(True, linestyle=":", alpha=0.6)
             ax_acc.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
             plt.xticks(rotation=15)
             st.pyplot(fig_acc)
             
         with v_col2:
-            st.markdown("##### ⛈️ Hydro-Meteorological Risk Assessment")
-            
-            # Simple algorithmic alert levels based on standard meteorological baselines
-            if total_rain > 100 or max_hourly_intensity > 25:
-                st.error("🚨 **High Risk:** Heavy to extreme precipitation sequences forecasted. Potential localized flooding risk.")
-            elif total_rain > 30 or max_hourly_intensity > 10:
-                st.warning("⚠️ **Moderate Risk:** Sustained monsoon conditions ahead. Watch out for rapid water accumulation.")
+            st.markdown("##### ⛈️ Hydrologic Threat Status")
+            if total_rain > 120 or max_hourly_intensity > 25:
+                st.error("🚨 **High Runoff Alert:** Flash flood signals mapped via multi-hour high accumulation vectors. Local soil saturation threshold surpassed.")
+            elif total_rain > 40 or max_hourly_intensity > 12:
+                st.warning("⚠️ **Active Monsoonal Surcharge:** Active wet cycle with heavy individual convective bursts. Standard drainage networks will reach capacity.")
             elif total_rain > 5:
-                st.info("ℹ️ **Light/Normal Activity:** Typical moisture patterns expected with transient convective showers.")
+                st.info("ℹ️ **Standard Low-Intensity Showers:** Normal moisture movement. No extreme structural threat matrices present.")
             else:
-                st.success("☀️ **Suppressed Monsoon:** Highly stable atmospheric layout with minimal precipitation signals.")
+                st.success("☀️ **Suppressed Moisture Feed:** Atmospheric air block or dry-slot tracking. Monsoonal convective cells completely suppressed.")
                 
-            # Atmospheric Context Box
-            st.markdown("##### 🌐 Instability Profile")
-            if avg_rh > 75 and avg_cape > 500:
-                st.info("High low-level moisture tracking along strong thermodynamic triggers; favorable environment for robust cloud setups.")
+            st.markdown("##### 🌐 Instability Metrics")
+            if avg_rh > 78 and avg_cape > 400:
+                st.info("High low-level moisture tracking along active thermodynamic triggers; convective column is highly favorable for rapid cloud growth.")
             else:
                 st.text("Atmospheric profile demonstrates structural stability or dry slotting limits.")
