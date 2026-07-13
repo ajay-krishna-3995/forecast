@@ -23,7 +23,7 @@ st.set_page_config(
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
-st.title("⛈️ Weather, Air Quality & Monsoon Hub")
+st.title("⛈️ Weather, Air Quality & Monsoon")
 st.markdown("Plan Better with Smarter Weather ☔")
 
 # Master database of preloaded global coordinate nodes
