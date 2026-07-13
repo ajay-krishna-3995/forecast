@@ -209,7 +209,7 @@ tab_home, tab_meteogram, tab_monsoon = st.tabs([
 # A. TAB LAYOUT: HOME (LIVE TELEMETRY & CHEMICAL AIR MONITORING)
 # ===============================================================================
 with tab_home:
-    st.subheader(f"📍 Active Station Feed: {location_name}")
+    st.subheader(f"📍{location_name}")
     st.write(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
     
     live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
