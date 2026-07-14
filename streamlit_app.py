@@ -50,7 +50,7 @@ MAJOR_CITIES = {
 }
 
 # Configurable Path Constants for India Spatial Modeling
-SHAPEFILE_PATH = "India_Country_Boundary.shp"
+SHAPEFILE_PATH = "India-State-and-Country-Shapefile-Updated-Jan-2020-master/India_Country_Boundary.shp"
 IMD_LEVELS = [0, 0.1, 2.4, 7.5, 15.5, 35.5, 64.4, 115.5, 204.4, 300]
 IMD_COLORS = ['#ffffff', '#e3f2fd', '#90caf9', '#4caf50', '#2e7d32', '#fff59d', '#fbc02d', '#ff9800', '#b71c1c']
 MAP_CITIES = {
