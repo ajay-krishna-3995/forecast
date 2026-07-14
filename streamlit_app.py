@@ -16,8 +16,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 
-# Hide the upper-right header, GitHub link, and footer
-# Hide the upper-right header, GitHub link, footer, and manage app options
+# Hide the upper-right header, GitHub link, footer, and ALL manage app / connection status elements
 st.markdown(
     """
     <style>
@@ -25,7 +24,15 @@ st.markdown(
     .stAppHeader {display: none;}
     footer {visibility: hidden;}
     .stAppDeployButton {display: none;}
-    [data-testid="stStatusWidget"] {display: none;}
+    
+    /* Target all variations of the host/status widget in the bottom right */
+    [data-testid="stStatusWidget"],
+    .stStatusWidget,
+    [data-testid="stConnectionStatus"],
+    iframe[title="manage-app"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
