@@ -7,13 +7,10 @@ import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import matplotlib.colors as mcolors
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from datetime import datetime as dt, timedelta
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 
 import streamlit as st
 from streamlit_folium import st_folium
@@ -50,7 +47,7 @@ MAJOR_CITIES = {
 }
 
 # Configurable Path Constants for India Spatial Modeling
-SHAPEFILE_PATH = "India-State-and-Country-Shapefile-Updated-Jan-2020-master/India_Country_Boundary.shp"
+SHAPEFILE_PATH = "D:\\ajay\\India-State-and-Country-Shapefile-Updated-Jan-2020-master\\India_Country_Boundary.shp"
 IMD_LEVELS = [0, 0.1, 2.4, 7.5, 15.5, 35.5, 64.4, 115.5, 204.4, 300]
 IMD_COLORS = ['#ffffff', '#e3f2fd', '#90caf9', '#4caf50', '#2e7d32', '#fff59d', '#fbc02d', '#ff9800', '#b71c1c']
 MAP_CITIES = {
@@ -154,8 +151,7 @@ def get_location_name(lat, lon):
         if "display_name" in res:
             parts = res["display_name"].split(",")
             return f"{parts[0].strip()}, {parts[-1].strip()}"
-    except Exception as e:
-        st.write(f"Geocoding error: {e}")
+    except Exception:
         pass
     return f"Node ({lat}°N, {lon}°E)"
 
@@ -169,10 +165,9 @@ def fetch_live_metrics(lat, lon):
         "timezone": "auto"
     }
     try:
-        res = requests.get(url, params=params, timeout=10).json()
+        res = requests.get(url, params=params).json()
         return res.get("current", None)
-    except Exception as e:
-        st.error(f"Weather API Error: {e}")
+    except Exception:
         return None
 
 @st.cache_data(show_spinner="Accessing Chemical Dispersion Model...")
@@ -185,10 +180,9 @@ def fetch_air_quality(lat, lon):
         "timezone": "auto"
     }
     try:
-        res = requests.get(url, params=params, timeout=10).json()
+        res = requests.get(url, params=params).json()
         return res.get("current", None)
-    except Exception as e:
-        st.error(f"Air Quality API Error: {e}")
+    except Exception:
         return None
 
 @st.cache_data(show_spinner="Compiling Multi-Model Core Vectors...")
@@ -213,75 +207,53 @@ def fetch_weather_data(lat, lon, days, model_id):
         "timezone": "auto",
     }
     try:
-        response = requests.get(base_url, params=params, timeout=15).json()
+        response = requests.get(base_url, params=params).json()
         if "hourly" not in response:
-            st.error("Invalid forecast response structure")
             return None
         df = pd.DataFrame(response["hourly"])
         df["time"] = pd.to_datetime(df["time"])
         return df
-    except Exception as e:
-        st.error(f"Forecast API Error: {e}")
+    except Exception:
         return None
 
 # Monsoon Specific Grid Retrieval Pipeline
 @st.cache_data(show_spinner="Extracting National Synoptic Grid Matrix via Open-Meteo POST...")
 def fetch_india_grid_forecast():
-    try:
-        lats = np.linspace(6.0, 38.0, 25)
-        lons = np.linspace(68.0, 98.0, 25)
-        lon_grid, lat_grid = np.meshgrid(lons, lats)
-        flat_lats, flat_lons = lat_grid.flatten(), lon_grid.flatten()
-        
-        lat_string = ",".join(map(str, np.round(flat_lats, 3)))
-        lon_string = ",".join(map(str, np.round(flat_lons, 3)))
-        
-        url = "https://api.open-meteo.com/v1/forecast"
-        payload = {
-            "latitude": lat_string,
-            "longitude": lon_string,
-            "hourly": "precipitation",
-            "models": "ecmwf_ifs",
-            "forecast_days": 1,
-            "timezone": "Asia/Kolkata"
-        }
-        
-        response = requests.post(url, data=payload, timeout=45)
-        if response.status_code != 200:
-            st.error(f"API returned status code {response.status_code}")
-            return None
-            
-        data = response.json()
-        
-        # Handle both single dict and list responses
-        if isinstance(data, dict):
-            if 'hourly' not in data:
-                st.error("Invalid API response structure")
-                return None
-            data = [data]
-        elif not isinstance(data, list):
-            st.error("Unexpected API response format")
-            return None
-        
-        records = []
-        for item in data:
-            if 'hourly' not in item or 'precipitation' not in item['hourly']:
-                continue
-            rain_array = item["hourly"]["precipitation"]
-            records.append({
-                "lat": item.get("latitude", 0),
-                "lon": item.get("longitude", 0),
-                "precip": sum(rain_array[:24]) if len(rain_array) > 0 else 0
-            })
-        
-        if not records:
-            st.error("No valid data extracted from API response")
-            return None
-            
-        return pd.DataFrame(records)
-    except Exception as e:
-        st.error(f"Grid Forecast Error: {e}")
+    lats = np.linspace(6.0, 38.0, 25)
+    lons = np.linspace(68.0, 98.0, 25)
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    flat_lats, flat_lons = lat_grid.flatten(), lon_grid.flatten()
+    
+    lat_string = ",".join(map(str, np.round(flat_lats, 3)))
+    lon_string = ",".join(map(str, np.round(flat_lons, 3)))
+    
+    url = "https://api.open-meteo.com/v1/forecast"
+    payload = {
+        "latitude": lat_string,
+        "longitude": lon_string,
+        "hourly": "precipitation",
+        "models": "ecmwf_ifs",
+        "forecast_days": 1,
+        "timezone": "Asia/Kolkata"
+    }
+    
+    response = requests.post(url, data=payload, timeout=45)
+    if response.status_code != 200:
         return None
+        
+    data = response.json()
+    if isinstance(data, dict):
+        data = [data]
+        
+    records = []
+    for item in data:
+        rain_array = item["hourly"]["precipitation"]
+        records.append({
+            "lat": item["latitude"],
+            "lon": item["longitude"],
+            "precip": sum(rain_array[:24])
+        })
+    return pd.DataFrame(records)
 
 location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 
@@ -331,43 +303,41 @@ with tab_home:
         
         with dash_col1:
             st.markdown("#### 🌧️ Meteorological Alerts (Next 24 Hours)")
-            if forecast_alert_df is not None and not forecast_alert_df.empty:
+            if forecast_alert_df is not None:
                 total_24h_rain = forecast_alert_df["precipitation"].sum()
                 peak_24h_rate = forecast_alert_df["precipitation"].max()
                 
-                if total_24h_rain > 75 or peak_24h_rate > 20:
-                    st.error(
-                        f"🔴 **Heavy Rain Warning**\n\n"
-                        f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
-                        f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
-                        f"and travel disruptions. Stay updated with local weather advisories."
-                    )
-                elif total_24h_rain > 25 or peak_24h_rate > 8:
-                    st.warning(
-                        f"🟡 **Rain Advisory**\n\n"
-                        f"Moderate to heavy rainfall is likely during the next 24 hours "
-                        f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
-                        f"while travelling, especially in low-lying areas."
-                    )
-                elif total_24h_rain > 0.2:
-                    st.info(
-                        f"🔵 **Light Rain Expected**\n\n"
-                        f"Light to moderate showers are expected over the next 24 hours "
-                        f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
-                    )
-                else:
-                    st.success(
-                        "🟢 **No Significant Rain Expected**\n\n"
-                        "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
-                    )
+            if total_24h_rain > 75 or peak_24h_rate > 20:
+                st.error(
+                    f"🔴 **Heavy Rain Warning**\n\n"
+                    f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
+                    f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
+                    f"and travel disruptions. Stay updated with local weather advisories."
+                )
+            elif total_24h_rain > 25 or peak_24h_rate > 8:
+                st.warning(
+                    f"🟡 **Rain Advisory**\n\n"
+                    f"Moderate to heavy rainfall is likely during the next 24 hours "
+                    f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
+                    f"while travelling, especially in low-lying areas."
+                )
+            elif total_24h_rain > 0.2:
+                st.info(
+                    f"🔵 **Light Rain Expected**\n\n"
+                    f"Light to moderate showers are expected over the next 24 hours "
+                    f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
+                )
             else:
-                st.info("Unable to fetch alert data")
+                st.success(
+                    "🟢 **No Significant Rain Expected**\n\n"
+                    "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
+                )
 
         with dash_col2:
             st.markdown("#### 🍃 Live Air Quality Index (AQI)")
-            eaqi_val = live_aqi.get("european_aqi", 0)
-            pm25_val = live_aqi.get("pm2_5", 0)
-            pm10_val = live_aqi.get("pm10", 0)
+            eaqi_val = live_aqi["european_aqi"]
+            pm25_val = live_aqi["pm2_5"]
+            pm10_val = live_aqi["pm10"]
             
             if eaqi_val <= 20:
                 aqi_status, aqi_color = "Excellent", "🟢"
@@ -384,7 +354,7 @@ with tab_home:
             
             aqi_table_df = pd.DataFrame({
                 "Aerosol Mass Component": ["Fine Particulates (PM2.5)", "Coarse Particulates (PM10)", "Nitrogen Dioxide (NO₂)", "Ozone (O₃)", "Sulfur Dioxide (SO₂)"],
-                "Concentration Density": [f"{pm25_val} µg/m³", f"{pm10_val} µg/m³", f"{live_aqi.get('nitrogen_dioxide', 0)} µg/m³", f"{live_aqi.get('ozone', 0)} µg/m³", f"{live_aqi.get('sulphur_dioxide', 0)} µg/m³"]
+                "Concentration Density": [f"{pm25_val} µg/m³", f"{pm10_val} µg/m³", f"{live_aqi['nitrogen_dioxide']} µg/m³", f"{live_aqi['ozone']} µg/m³", f"{live_aqi['sulphur_dioxide']} µg/m³"]
             })
             st.table(aqi_table_df)
     else:
@@ -402,7 +372,7 @@ with tab_meteogram:
     }
 
     def render_meteogram(df, model_title):
-        if df is None or df.empty:
+        if df is None:
             st.error("Data tracking failure on core vector frame.")
             return
 
@@ -545,153 +515,77 @@ with tab_monsoon:
     st.markdown("##### 🌐 24-Hour National Spatial Interpolation (ECMWF IFS 9km)")
     
     if not os.path.exists(SHAPEFILE_PATH):
-        st.warning(f"⚠�� Shapefile not found at: `{SHAPEFILE_PATH}`")
-        st.info("**Demo Mode**: Showing sample interpolation without geographic boundaries")
-        
-        # Demo mode: Create synthetic data
-        lats = np.linspace(6.0, 38.0, 25)
-        lons = np.linspace(68.0, 98.0, 25)
-        lon_grid, lat_grid = np.meshgrid(lons, lats)
-        
-        # Generate synthetic precipitation data
-        x_arr = lon_grid.flatten()
-        y_arr = lat_grid.flatten()
-        z_arr = np.random.uniform(0, 50, len(x_arr))
-        
-        # Create interpolated grid on exact geographic bounds
-        xi_mesh = np.linspace(x_arr.min(), x_arr.max(), 300)
-        yi_mesh = np.linspace(y_arr.min(), y_arr.max(), 300)
-        xi_mesh, yi_mesh = np.meshgrid(xi_mesh, yi_mesh)
-        zi_mesh = griddata((x_arr, y_arr), z_arr, (xi_mesh, yi_mesh), method='cubic', fill_value=0)
-        zi_mesh = np.nan_to_num(zi_mesh, nan=0)
-        
-        # Generate Map Figure
-        fig_map = plt.figure(figsize=(12, 10), facecolor='#ffffff')
-        ax_map = plt.axes(projection=ccrs.PlateCarree())
-        
-        bounds = [x_arr.min() - 0.5, x_arr.max() + 0.5, y_arr.min() - 0.5, y_arr.max() + 0.5]
-        ax_map.set_extent([bounds[0], bounds[1], bounds[2], bounds[3]], crs=ccrs.PlateCarree())
-        
-        ax_map.add_feature(cfeature.OCEAN, facecolor='#edf1f7', zorder=0)
-        ax_map.add_feature(cfeature.LAND, facecolor='#fdfdfd', zorder=0)
-        
-        # Render IMD Colors
-        cmap_imd = ListedColormap(IMD_COLORS)
-        norm_imd = BoundaryNorm(IMD_LEVELS, cmap_imd.N)
-        
-        contour_plot = ax_map.contourf(
-            xi_mesh, yi_mesh, zi_mesh, levels=IMD_LEVELS, cmap=cmap_imd, norm=norm_imd,
-            alpha=0.85, extend='max', transform=ccrs.PlateCarree(), zorder=2
-        )
-        
-        # Reference Station Plot Markers (if within bounds)
-        for city, coords in MAP_CITIES.items():
-            if bounds[0] <= coords[0] <= bounds[1] and bounds[2] <= coords[1] <= bounds[3]:
-                ax_map.plot(coords[0], coords[1], marker='o', color='#212121', markersize=5, zorder=5, transform=ccrs.PlateCarree())
-                ax_map.text(coords[0] + 0.3, coords[1] + 0.3, city, fontsize=8, weight='bold', transform=ccrs.PlateCarree(), zorder=5)
-        
-        gl_map = ax_map.gridlines(draw_labels=True, linewidth=0.4, color='#b0bec5', alpha=0.4, linestyle='--')
-        gl_map.top_labels, gl_map.right_labels = False, False
-        
-        cb = plt.colorbar(contour_plot, orientation='horizontal', pad=0.05, shrink=0.85, aspect=30)
-        cb.set_label('Accumulated Rainfall Over Next 24 Hours (mm)', weight='bold', size=9)
-        cb.ax.tick_params(labelsize=8)
-        
-        st.pyplot(fig_map, clear_figure=True)
-        st.info("📌 Note: This is a demo visualization. For real data, ensure India_Country_Boundary.shp exists in the working directory.")
-        
+        st.error(f"Shapefile not found at target directory: `{SHAPEFILE_PATH}`. Please check file routing paths.")
     else:
         with st.spinner("Processing geospatial alignment matrix... This takes 2-3 seconds."):
             grid_data_df = fetch_india_grid_forecast()
             
             if grid_data_df is not None and not grid_data_df.empty:
-                try:
-                    # Load and validate shapefile
-                    gdf = gpd.read_file(SHAPEFILE_PATH)
+                # Load shape files natively
+                gdf = gpd.read_file(SHAPEFILE_PATH)
+                if gdf.crs is None or gdf.crs.to_epsg() != 4326:
+                    gdf = gdf.to_crs(epsg=4326)
                     
-                    # Ensure CRS is EPSG:4326
-                    if gdf.crs is None or gdf.crs.to_epsg() != 4326:
-                        gdf = gdf.to_crs(epsg=4326)
-                    
-                    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
-                    
-                    # Validate grid data
-                    grid_data_df = grid_data_df.dropna(subset=['lat', 'lon', 'precip'])
-                    
-                    if grid_data_df.empty:
-                        st.error("No valid data points after filtering")
-                    else:
-                        x_arr = grid_data_df['lon'].values.astype(float)
-                        y_arr = grid_data_df['lat'].values.astype(float)
-                        z_arr = grid_data_df['precip'].values.astype(float)
+                # Create linear space surface grid (300 x 300)
+                x_arr, y_arr, z_arr = grid_data_df['lon'].values, grid_data_df['lat'].values, grid_data_df['precip'].values
+                xi_mesh = np.linspace(x_arr.min(), x_arr.max(), 300)
+                yi_mesh = np.linspace(y_arr.min(), y_arr.max(), 300)
+                xi_mesh, yi_mesh = np.meshgrid(xi_mesh, yi_mesh)
+                
+                # Run cubic grid surface spline
+                zi_mesh = griddata((x_arr, y_arr), z_arr, (xi_mesh, yi_mesh), method='cubic')
+                
+                # Optimized Vector Deduplicated Masking Routine
+                grid_df = pd.DataFrame({'lon': xi_mesh.flatten(), 'lat': yi_mesh.flatten()})
+                grid_gdf = gpd.GeoDataFrame(grid_df, geometry=gpd.points_from_xy(grid_df.lon, grid_df.lat), crs="EPSG:4326")
+                
+                inside_points = gpd.sjoin(grid_gdf, gdf, how='left', predicate='within')
+                inside_points = inside_points.groupby(inside_points.index).first()
+                
+                mask_matrix = inside_points['index_right'].notna().values.reshape(xi_mesh.shape)
+                zi_masked = np.where(mask_matrix, zi_mesh, np.nan)
+                
+                # Generate Map Figure using pure matplotlib (removing Cartopy)
+                fig_map, ax_map = plt.subplots(figsize=(11, 10), facecolor='#ffffff')
+                
+                # Simulate water bodies with background color
+                ax_map.set_facecolor('#edf1f7')
+                
+                # Enforce coordinate extents
+                bounds = gdf.total_bounds
+                ax_map.set_xlim(bounds[0] - 0.5, bounds[2] + 0.5)
+                ax_map.set_ylim(bounds[1] - 0.5, bounds[3] + 0.5)
+                
+                # Draw country outline with land background
+                gdf.plot(ax=ax_map, facecolor='#fdfdfd', edgecolor='#37474f', linewidth=0.8, alpha=0.8, zorder=1)
+                
+                # Render IMD Colors
+                cmap_imd = ListedColormap(IMD_COLORS)
+                norm_imd = BoundaryNorm(IMD_LEVELS, cmap_imd.N)
+                
+                contour_plot = ax_map.contourf(
+                    xi_mesh, yi_mesh, zi_masked, levels=IMD_LEVELS, cmap=cmap_imd, norm=norm_imd,
+                    alpha=0.85, extend='max', zorder=2
+                )
+                
+                # Draw boundaries again on top to keep them crisp
+                gdf.plot(ax=ax_map, facecolor='none', edgecolor='#37474f', linewidth=1.0, zorder=3)
+                
+                # Reference Station Plot Markers
+                for city, coords in MAP_CITIES.items():
+                    if bounds[0] <= coords[0] <= bounds[2] and bounds[1] <= coords[1] <= bounds[3]:
+                        ax_map.plot(coords[0], coords[1], marker='o', color='#212121', markersize=4, zorder=5)
+                        ax_map.text(coords[0] + 0.2, coords[1] + 0.2, city, fontsize=8, weight='bold', zorder=5)
                         
-                        st.write(f"✓ Data points: {len(z_arr)}, Range: {z_arr.min():.2f}-{z_arr.max():.2f} mm")
-                        
-                        # Create interpolated grid on exact geographic bounds
-                        xi_mesh = np.linspace(bounds[0], bounds[2], 300)
-                        yi_mesh = np.linspace(bounds[1], bounds[3], 300)
-                        xi_mesh_grid, yi_mesh_grid = np.meshgrid(xi_mesh, yi_mesh)
-                        
-                        # Interpolate using cubic method
-                        zi_mesh = griddata((x_arr, y_arr), z_arr, (xi_mesh_grid, yi_mesh_grid), method='cubic', fill_value=0)
-                        zi_mesh = np.nan_to_num(zi_mesh, nan=0)
-                        
-                        st.write(f"✓ Interpolated grid shape: {zi_mesh.shape}")
-                        
-                        # Mask to India boundary
-                        grid_points = pd.DataFrame({
-                            'lon': xi_mesh_grid.flatten(),
-                            'lat': yi_mesh_grid.flatten(),
-                            'precip': zi_mesh.flatten()
-                        })
-                        grid_gdf = gpd.GeoDataFrame(
-                            grid_points,
-                            geometry=gpd.points_from_xy(grid_points.lon, grid_points.lat),
-                            crs="EPSG:4326"
-                        )
-                        
-                        # Perform spatial join to mask to India
-                        masked_points = gpd.sjoin(grid_gdf, gdf, how='left', predicate='within')
-                        mask_array = masked_points['index_right'].notna().values.reshape(zi_mesh.shape)
-                        zi_masked = np.where(mask_array, zi_mesh, np.nan)
-                        
-                        # Generate Map Figure
-                        fig_map = plt.figure(figsize=(12, 10), facecolor='#ffffff')
-                        ax_map = plt.axes(projection=ccrs.PlateCarree())
-                        
-                        ax_map.set_extent([bounds[0] - 0.5, bounds[2] + 0.5, bounds[1] - 0.5, bounds[3] + 0.5], crs=ccrs.PlateCarree())
-                        
-                        ax_map.add_feature(cfeature.OCEAN, facecolor='#edf1f7', zorder=0)
-                        ax_map.add_feature(cfeature.LAND, facecolor='#fdfdfd', zorder=0)
-                        
-                        # Draw India boundary
-                        gdf.plot(ax=ax_map, facecolor='none', edgecolor='#37474f', linewidth=1.2, alpha=0.8, zorder=3, transform=ccrs.PlateCarree())
-                        
-                        # Render IMD Colors
-                        cmap_imd = ListedColormap(IMD_COLORS)
-                        norm_imd = BoundaryNorm(IMD_LEVELS, cmap_imd.N)
-                        
-                        contour_plot = ax_map.contourf(
-                            xi_mesh_grid, yi_mesh_grid, zi_masked, levels=IMD_LEVELS, cmap=cmap_imd, norm=norm_imd,
-                            alpha=0.85, extend='max', transform=ccrs.PlateCarree(), zorder=2
-                        )
-                        
-                        # Reference Station Plot Markers
-                        for city, coords in MAP_CITIES.items():
-                            if bounds[0] <= coords[0] <= bounds[2] and bounds[1] <= coords[1] <= bounds[3]:
-                                ax_map.plot(coords[0], coords[1], marker='o', color='#212121', markersize=5, zorder=5, transform=ccrs.PlateCarree())
-                                ax_map.text(coords[0] + 0.3, coords[1] + 0.3, city, fontsize=8, weight='bold', transform=ccrs.PlateCarree(), zorder=5)
-                        
-                        gl_map = ax_map.gridlines(draw_labels=True, linewidth=0.4, color='#b0bec5', alpha=0.4, linestyle='--')
-                        gl_map.top_labels, gl_map.right_labels = False, False
-                        
-                        cb = plt.colorbar(contour_plot, orientation='horizontal', pad=0.05, shrink=0.85, aspect=30)
-                        cb.set_label('Accumulated Rainfall Over Next 24 Hours (mm)', weight='bold', size=9)
-                        cb.ax.tick_params(labelsize=8)
-                        
-                        st.pyplot(fig_map, clear_figure=True)
-                        
-                except Exception as e:
-                    st.error(f"Geospatial processing error: {e}")
+                # Native Matplotlib Grid lines
+                ax_map.grid(True, which="both", color='#b0bec5', alpha=0.4, linestyle='--')
+                ax_map.set_xlabel('Longitude (°E)', fontsize=9)
+                ax_map.set_ylabel('Latitude (°N)', fontsize=9)
+                
+                cb = plt.colorbar(contour_plot, orientation='horizontal', pad=0.05, shrink=0.85, aspect=30)
+                cb.set_label('Accumulated Rainfall Over Next 24 Hours (mm)', weight='bold', size=9)
+                cb.ax.tick_params(labelsize=8)
+                
+                st.pyplot(fig_map, clear_figure=True)
             else:
-                st.error("Meteorological API connection timed out or returned invalid data. Could not fetch map data.")
+                st.error("Meteorological API connection timed out. Could not fetch map data.")
