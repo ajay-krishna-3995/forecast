@@ -16,6 +16,16 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 
+# Hide the upper-right header, GitHub link, and footer
+st.markdown(
+    """
+    <style>
+    header {visibility: hidden;}
+    .stAppHeader {display: none;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
 # -------------------------------------------------------------------------------
