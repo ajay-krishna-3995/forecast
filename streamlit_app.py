@@ -20,27 +20,38 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP
 # -------------------------------------------------------------------------------
+# 1. STREAMLIT PAGE SETUP
 st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon",
-    page_icon="⛈️",
+    page_title="Weather, Air Quality & Monsoon", 
+    page_icon="⛈️", 
     layout="wide"
 )
-# Hide the upper-right header, GitHub link, footer, and ALL manage app / connection status elements
+
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, and bottom manage app buttons)
 st.markdown(
     """
     <style>
-    header {visibility: hidden;}
-    .stAppHeader {display: none;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display: none;}
-    
-    /* Target all variations of the host/status widget in the bottom right */
-    [data-testid="stStatusWidget"],
-    .stStatusWidget,
-    [data-testid="stConnectionStatus"],
-    iframe[title="manage-app"] {
+    /* Completely eliminate the top header bar and its actions */
+    header, .stAppHeader, [data-testid="stHeader"] {
         display: none !important;
         visibility: hidden !important;
+        height: 0px !important;
+    }
+    
+    /* Completely eliminate the footer and the manage app / status widgets */
+    footer, 
+    .stAppDeployButton, 
+    [data-testid="stStatusWidget"], 
+    [data-testid="stDecoration"],
+    .stStatusWidget,
+    #connection-status {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Adjust top padding so your title doesn't look cut off */
+    .block-container {
+        padding-top: 2rem !important;
     }
     </style>
     """,
