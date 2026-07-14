@@ -9,3 +9,6 @@ streamlit-folium
 streamlit_autorefresh
 folium
 python-dotenv
+geopandas
+cartopy
+Shapely
