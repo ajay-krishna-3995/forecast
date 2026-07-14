@@ -17,11 +17,15 @@ from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 
 # Hide the upper-right header, GitHub link, and footer
+# Hide the upper-right header, GitHub link, footer, and manage app options
 st.markdown(
     """
     <style>
     header {visibility: hidden;}
     .stAppHeader {display: none;}
+    footer {visibility: hidden;}
+    .stAppDeployButton {display: none;}
+    [data-testid="stStatusWidget"] {display: none;}
     </style>
     """,
     unsafe_allow_html=True
