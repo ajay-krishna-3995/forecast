@@ -16,6 +16,15 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 
+
+# -------------------------------------------------------------------------------
+# 1. STREAMLIT PAGE SETUP
+# -------------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Weather, Air Quality & Monsoon",
+    page_icon="⛈️",
+    layout="wide"
+)
 # Hide the upper-right header, GitHub link, footer, and ALL manage app / connection status elements
 st.markdown(
     """
@@ -37,15 +46,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-# -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP
-# -------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon",
-    page_icon="⛈️",
-    layout="wide"
-)
-
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
