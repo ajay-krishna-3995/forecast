@@ -26,7 +26,7 @@ st.set_page_config(
     page_icon="⛈️", 
     layout="wide"
 )
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and viewer profile badge)
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and locks out viewer profile badge)
 st.markdown("""
     <style>
     /* Completely eliminate the top header bar and its actions */
@@ -62,21 +62,22 @@ st.markdown("""
     .block-container {
         padding-top: 2rem !important; 
     }
+
+    /* Intercept all click actions in the bottom right corner (Blocks profile badge access) */
+    .stApp::after {
+        content: "";
+        position: fixed;
+        bottom: 0px;
+        right: 0px;
+        width: 250px; /* Covers the profile name and icon area */
+        height: 60px; /* Covers the badge height */
+        z-index: 999999;
+        background: transparent; /* Invisible but physically blocks clicks */
+        pointer-events: auto !important;
+    }
     </style>
     """, unsafe_allow_html=True
 )
-/* Intercept all click actions in the bottom right corner */
-.stApp::after {
-    content: "";
-    position: fixed;
-    bottom: 0px;
-    right: 0px;
-    width: 250px; /* Covers the profile name and icon area */
-    height: 60px; /* Covers the badge height */
-    z-index: 999999;
-    background: transparent; /* Invisible but physically blocks clicks */
-    pointer-events: auto !important;
-}
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
