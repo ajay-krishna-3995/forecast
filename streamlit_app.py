@@ -17,14 +17,50 @@ from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import base64
 
+# --- IMPORT HTML FOR THE JAVASCRIPT HACK ---
+from streamlit.components.v1 import html
+
 # -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
+# 1. STREAMLIT PAGE SETUP & PARENT ELEMENT REMOVAL (JAVASCRIPT)
 # -------------------------------------------------------------------------------
 st.set_page_config(
     page_title="Weather, Air Quality & Monsoon",
     page_icon="⛈️",
     layout="wide"
 )
+
+# JavaScript snippet that executes outside of your app's iframe
+# to completely find and hide the parent Streamlit Cloud profile badge & crown
+html('''
+<script>
+    function hideViewerBadge() {
+        // Target the parent document structure containing the sharing container
+        const parentDoc = window.top.document;
+        
+        // Target the hosting redirect links
+        parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.width = '0px';
+            el.style.height = '0px';
+        });
+        
+        // Target the profile avatar wrappers and custom container classes
+        parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.width = '0px';
+            el.style.height = '0px';
+        });
+    }
+
+    // Fire immediately upon initialization
+    hideViewerBadge();
+    
+    // Periodically run a DOM sweep to prevent the badge from reappearing
+    setInterval(hideViewerBadge, 500);
+</script>
+''', height=0, width=0)
 
 # Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
 LOCAL_IMAGE_PATH = "Background.jpg"
@@ -204,55 +240,44 @@ else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
 
 # -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav)
-# -------------------------------------------------------------------------------
-# -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav, and viewer badge)
-# -------------------------------------------------------------------------------
-# -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, footer, native nav, and ALL viewer badges)
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav inside the iframe)
 # -------------------------------------------------------------------------------
 st.markdown("""
     <style>
-    /* 1. Eliminate Streamlit's native sidebar multipage navigation link block */
+    /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
     [data-testid="stSidebarNav"] {
         display: none !important;
         visibility: hidden !important;
         height: 0px !important;
     }
 
-    /* 2. Eliminate the top header bar and its actions */
+    /* Completely eliminate the top header bar and its actions */
     header, .stAppHeader, [data-testid="stHeader"] {
         display: none !important; 
         visibility: hidden !important; 
         height: 0px !important; 
     }
     
-    /* 3. Eliminate the footer, "Made with Streamlit" brand, and status widgets */
+    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
     footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
         display: none !important; 
         visibility: hidden !important; 
     }
     
-    /* 4. Aggressive target locks for the bottom-right Streamlit Cloud "Viewer Badge" & User Profile Avatar */
-    [data-testid="stViewerFooter"],
-    [class*="viewerBadge"],
-    [class*="ViewerBadge"],
-    [class*="profile"],
-    [class*="Profile"],
-    [class*="avatar"],
-    [class*="Avatar"],
-    div[class*="styles_viewerBadge"],
-    div[class*="styles_avatar"],
-    img[src*="avatar"],
-    a[href*="sharing-badge"],
-    a[href*="streamlit.io/cloud"] {
+    /* Strict target for the viewer footer container to block interaction */
+    [data-testid="stViewerFooter"] {
         display: none !important;
         visibility: hidden !important;
-        opacity: 0 !important;
-        width: 0px !important;
-        height: 0px !important;
-        pointer-events: none !important;
+    }
+
+    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
+    .viewerBadge_container__1QSob, 
+    .styles_viewerBadge__1yB5_, 
+    .viewerBadge_link__1S137, 
+    .viewerBadge_text__1JaDK,
+    [class^="viewerBadge_"] {
+        display: none !important;
+        visibility: hidden !important;
     }
     
     /* Adjust top padding so your title doesn't look cut off */
@@ -260,7 +285,7 @@ st.markdown("""
         padding-top: 2rem !important; 
     }
 
-    /* 5. Iron-clad click/render barrier along the entire bottom of the app window */
+    /* Create an iron-clad click barrier along the entire bottom of the app window */
     .stApp::after {
         content: "";
         position: fixed !important;
@@ -276,6 +301,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True
 )
+
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
