@@ -28,34 +28,34 @@ st.set_page_config(
 )
 
 # 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, and bottom manage app buttons)
-st.markdown(
-    """
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and profile links)
+st.markdown("""
     <style>
     /* Completely eliminate the top header bar and its actions */
     header, .stAppHeader, [data-testid="stHeader"] {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0px !important;
+        display: none !important; 
+        visibility: hidden !important; 
+        height: 0px !important; 
     }
     
-    /* Completely eliminate the footer and the manage app / status widgets */
-    footer, 
-    .stAppDeployButton, 
-    [data-testid="stStatusWidget"], 
-    [data-testid="stDecoration"],
-    .stStatusWidget,
-    #connection-status {
+    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
+    footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
+        display: none !important; 
+        visibility: hidden !important; 
+    }
+    
+    /* Strict target for the viewer footer container to block interaction */
+    [data-testid="stViewerFooter"] {
         display: none !important;
         visibility: hidden !important;
     }
     
     /* Adjust top padding so your title doesn't look cut off */
     .block-container {
-        padding-top: 2rem !important;
+        padding-top: 2rem !important; 
     }
     </style>
-    """,
-    unsafe_allow_html=True
+    """, unsafe_allow_html=True
 )
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
