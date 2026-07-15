@@ -26,9 +26,7 @@ st.set_page_config(
     page_icon="⛈️", 
     layout="wide"
 )
-
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, and bottom manage app buttons)
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and profile links)
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and viewer profile badge)
 st.markdown("""
     <style>
     /* Completely eliminate the top header bar and its actions */
@@ -46,6 +44,16 @@ st.markdown("""
     
     /* Strict target for the viewer footer container to block interaction */
     [data-testid="stViewerFooter"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
+    .viewerBadge_container__1QSob, 
+    .styles_viewerBadge__1yB5_, 
+    .viewerBadge_link__1S137, 
+    .viewerBadge_text__1JaDK,
+    [class^="viewerBadge_"] {
         display: none !important;
         visibility: hidden !important;
     }
