@@ -15,6 +15,7 @@ from scipy.ndimage import gaussian_filter
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
+import base64
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
