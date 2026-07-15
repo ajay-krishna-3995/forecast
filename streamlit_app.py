@@ -15,7 +15,6 @@ from scipy.ndimage import gaussian_filter
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
-import base64
 
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
@@ -202,10 +201,19 @@ if img_base64:
     )
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
+
 # -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and locks out viewer profile badge)
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav)
+# -------------------------------------------------------------------------------
 st.markdown("""
     <style>
+    /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0px !important;
+    }
+
     /* Completely eliminate the top header bar and its actions */
     header, .stAppHeader, [data-testid="stHeader"] {
         display: none !important; 
@@ -256,6 +264,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True
 )
+
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
@@ -289,7 +298,7 @@ MAP_CITIES = {
 }
 
 # -------------------------------------------------------------------------------
-# 2. STATE MANAGER & BI-DIRECTIONAL LOCATION SYNCHRONIZATION
+# 3. STATE MANAGER & BI-DIRECTIONAL LOCATION SYNCHRONIZATION
 # -------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state.lat = 19.076  # Defaulting to Mumbai
@@ -312,7 +321,7 @@ def sync_city_dropdown():
             break
 
 # -------------------------------------------------------------------------------
-# 3. GLOBAL SIDEBAR CONTROLS (UNIVERSAL TARGET SELECTOR)
+# 4. GLOBAL SIDEBAR CONTROLS (UNIVERSAL TARGET SELECTOR)
 # -------------------------------------------------------------------------------
 st.sidebar.header("📍 Location Navigator")
 
@@ -369,7 +378,7 @@ if map_data and map_data.get("last_clicked"):
 DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
 
 # -------------------------------------------------------------------------------
-# 4. DATA RETRIEVAL PIPELINES (WEATHER, FORECAST & AIR QUALITY)
+# 5. DATA RETRIEVAL PIPELINES (WEATHER, FORECAST & AIR QUALITY)
 # -------------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def get_location_name(lat, lon):
@@ -447,49 +456,10 @@ def fetch_weather_data(lat, lon, days, model_id):
     except Exception:
         return None
 
-# Monsoon Specific Grid Retrieval Pipeline
-@st.cache_data(show_spinner="Extracting National Synoptic Grid Matrix via Open-Meteo POST...")
-def fetch_india_grid_forecast():
-    lats = np.linspace(6.0, 38.0, 25)
-    lons = np.linspace(68.0, 98.0, 25)
-    lon_grid, lat_grid = np.meshgrid(lons, lats)
-    flat_lats, flat_lons = lat_grid.flatten(), lon_grid.flatten()
-    
-    lat_string = ",".join(map(str, np.round(flat_lats, 3)))
-    lon_string = ",".join(map(str, np.round(flat_lons, 3)))
-    
-    url = "https://api.open-meteo.com/v1/forecast"
-    payload = {
-        "latitude": lat_string,
-        "longitude": lon_string,
-        "hourly": "precipitation",
-        "models": "ecmwf_ifs",
-        "forecast_days": 1,
-        "timezone": "Asia/Kolkata"
-    }
-    
-    response = requests.post(url, data=payload, timeout=45)
-    if response.status_code != 200:
-        return None
-        
-    data = response.json()
-    if isinstance(data, dict):
-        data = [data]
-        
-    records = []
-    for item in data:
-        rain_array = item["hourly"]["precipitation"]
-        records.append({
-            "lat": item["latitude"],
-            "lon": item["longitude"],
-            "precip": sum(rain_array[:24])
-        })
-    return pd.DataFrame(records)
-
 location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 
 # -------------------------------------------------------------------------------
-# 5. WORKSPACE TAB COMPOSITIONS
+# 6. WORKSPACE TAB COMPOSITIONS
 # -------------------------------------------------------------------------------
 tab_home, tab_meteogram, tab_monsoon = st.tabs([
     "🏡 Home",
@@ -735,88 +705,5 @@ with tab_meteogram:
             if model_df is not None:
                 render_meteogram(model_df, cfg["title"])
 
-# ===============================================================================
-# C. TAB LAYOUT: MONSOON DIAGNOSTIC (INTEGRATED HIGH-RES SPATIAL INTERPOLATION)
-# ===============================================================================
 with tab_monsoon:
-    st.subheader("🌧️ India National Monsoon Precipitation Analysis")
-    st.markdown(f"**Target Local Reference:** {location_name}")
-    st.markdown("---")
-    
-    st.markdown("##### 🌐 24-Hour National Spatial Interpolation (ECMWF IFS 9km)")
-    
-    if not os.path.exists(SHAPEFILE_PATH):
-        st.error(f"Shapefile not found at target directory: `{SHAPEFILE_PATH}`. Please check file routing paths.")
-    else:
-        with st.spinner("Processing geospatial alignment matrix... This takes 2-3 seconds."):
-            grid_data_df = fetch_india_grid_forecast()
-            
-            if grid_data_df is not None and not grid_data_df.empty:
-                # Load shape files natively
-                gdf = gpd.read_file(SHAPEFILE_PATH)
-                if gdf.crs is None or gdf.crs.to_epsg() != 4326:
-                    gdf = gdf.to_crs(epsg=4326)
-                    
-                # Create linear space surface grid (300 x 300)
-                x_arr, y_arr, z_arr = grid_data_df['lon'].values, grid_data_df['lat'].values, grid_data_df['precip'].values
-                xi_mesh = np.linspace(x_arr.min(), x_arr.max(), 300)
-                yi_mesh = np.linspace(y_arr.min(), y_arr.max(), 300)
-                xi_mesh, yi_mesh = np.meshgrid(xi_mesh, yi_mesh)
-                
-                # Run cubic grid surface spline
-                zi_mesh = griddata((x_arr, y_arr), z_arr, (xi_mesh, yi_mesh), method='cubic')
-                
-                # Optimized Vector Deduplicated Masking Routine
-                grid_df = pd.DataFrame({'lon': xi_mesh.flatten(), 'lat': yi_mesh.flatten()})
-                grid_gdf = gpd.GeoDataFrame(grid_df, geometry=gpd.points_from_xy(grid_df.lon, grid_df.lat), crs="EPSG:4326")
-                
-                inside_points = gpd.sjoin(grid_gdf, gdf, how='left', predicate='within')
-                inside_points = inside_points.groupby(inside_points.index).first()
-                
-                mask_matrix = inside_points['index_right'].notna().values.reshape(xi_mesh.shape)
-                zi_masked = np.where(mask_matrix, zi_mesh, np.nan)
-                
-                # Generate Map Figure using pure matplotlib (removing Cartopy)
-                fig_map, ax_map = plt.subplots(figsize=(11, 10), facecolor='#ffffff')
-                
-                # Simulate water bodies with background color
-                ax_map.set_facecolor('#edf1f7')
-                
-                # Enforce coordinate extents
-                bounds = gdf.total_bounds
-                ax_map.set_xlim(bounds[0] - 0.5, bounds[2] + 0.5)
-                ax_map.set_ylim(bounds[1] - 0.5, bounds[3] + 0.5)
-                
-                # Draw country outline with land background
-                gdf.plot(ax=ax_map, facecolor='#fdfdfd', edgecolor='#37474f', linewidth=0.8, alpha=0.8, zorder=1)
-                
-                # Render IMD Colors
-                cmap_imd = ListedColormap(IMD_COLORS)
-                norm_imd = BoundaryNorm(IMD_LEVELS, cmap_imd.N)
-                
-                contour_plot = ax_map.contourf(
-                    xi_mesh, yi_mesh, zi_masked, levels=IMD_LEVELS, cmap=cmap_imd, norm=norm_imd,
-                    alpha=0.85, extend='max', zorder=2
-                )
-                
-                # Draw boundaries again on top to keep them crisp
-                gdf.plot(ax=ax_map, facecolor='none', edgecolor='#37474f', linewidth=1.0, zorder=3)
-                
-                # Reference Station Plot Markers
-                for city, coords in MAP_CITIES.items():
-                    if bounds[0] <= coords[0] <= bounds[2] and bounds[1] <= coords[1] <= bounds[3]:
-                        ax_map.plot(coords[0], coords[1], marker='o', color='#212121', markersize=4, zorder=5)
-                        ax_map.text(coords[0] + 0.2, coords[1] + 0.2, city, fontsize=8, weight='bold', zorder=5)
-                        
-                # Native Matplotlib Grid lines
-                ax_map.grid(True, which="both", color='#b0bec5', alpha=0.4, linestyle='--')
-                ax_map.set_xlabel('Longitude (°E)', fontsize=9)
-                ax_map.set_ylabel('Latitude (°N)', fontsize=9)
-                
-                cb = plt.colorbar(contour_plot, orientation='horizontal', pad=0.05, shrink=0.85, aspect=30)
-                cb.set_label('Accumulated Rainfall Over Next 24 Hours (mm)', weight='bold', size=9)
-                cb.ax.tick_params(labelsize=8)
-                
-                st.pyplot(fig_map, clear_figure=True)
-            else:
-                st.error("Meteorological API connection timed out. Could not fetch map data.")
+    st.write("Monsoon workspace content goes here...")
