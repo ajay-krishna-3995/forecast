@@ -209,39 +209,50 @@ else:
 # -------------------------------------------------------------------------------
 # 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav, and viewer badge)
 # -------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, footer, native nav, and ALL viewer badges)
+# -------------------------------------------------------------------------------
 st.markdown("""
     <style>
-    /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
+    /* 1. Eliminate Streamlit's native sidebar multipage navigation link block */
     [data-testid="stSidebarNav"] {
         display: none !important;
         visibility: hidden !important;
         height: 0px !important;
     }
 
-    /* Completely eliminate the top header bar and its actions */
+    /* 2. Eliminate the top header bar and its actions */
     header, .stAppHeader, [data-testid="stHeader"] {
         display: none !important; 
         visibility: hidden !important; 
         height: 0px !important; 
     }
     
-    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
+    /* 3. Eliminate the footer, "Made with Streamlit" brand, and status widgets */
     footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
         display: none !important; 
         visibility: hidden !important; 
     }
     
-    /* Target and hide the bottom right viewer badge container, the hosted ribbon, and your profile image */
+    /* 4. Aggressive target locks for the bottom-right Streamlit Cloud "Viewer Badge" & User Profile Avatar */
     [data-testid="stViewerFooter"],
     [class*="viewerBadge"],
+    [class*="ViewerBadge"],
+    [class*="profile"],
     [class*="Profile"],
-    .viewerBadge_container__1QSob, 
-    .styles_viewerBadge__1yB5_, 
-    .viewerBadge_link__1S137, 
-    .viewerBadge_text__1JaDK {
+    [class*="avatar"],
+    [class*="Avatar"],
+    div[class*="styles_viewerBadge"],
+    div[class*="styles_avatar"],
+    img[src*="avatar"],
+    a[href*="sharing-badge"],
+    a[href*="streamlit.io/cloud"] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
+        width: 0px !important;
+        height: 0px !important;
+        pointer-events: none !important;
     }
     
     /* Adjust top padding so your title doesn't look cut off */
@@ -249,7 +260,7 @@ st.markdown("""
         padding-top: 2rem !important; 
     }
 
-    /* Create an iron-clad click barrier along the entire bottom of the app window */
+    /* 5. Iron-clad click/render barrier along the entire bottom of the app window */
     .stApp::after {
         content: "";
         position: fixed !important;
@@ -265,7 +276,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True
 )
-
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
