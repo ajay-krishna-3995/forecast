@@ -609,27 +609,27 @@ with tab_meteogram:
         "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
     }
 
-def render_meteogram(df, model_title):
-    if df is None:
-        st.error("Data tracking failure on core vector frame.")
-        return
-    with st.spinner(f"Generating {model_title} Meteogram Plot..."):
-        # 1. Initialize the figure and subplots
-        fig, axs = plt.subplots(7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1, 2.8, 1.2]} )
-        
-        # 2. ADDED: Force the main figure canvas background to be transparent
-        fig.patch.set_facecolor('none')
-        fig.patch.set_alpha(0.0)
-
-        # 3. ADDED: Force each subplot background to be transparent
-        for ax in axs:
-            ax.patch.set_facecolor('none')
-            ax.patch.set_alpha(0.0)
-
-        # 4. Continue with layout adjustments and plotting...
-        plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
-        axs[0].set_title(f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", fontsize=14, weight="bold", pad=12 )
-        # ... (rest of your plotting code remains the same)
+    def render_meteogram(df, model_title):
+        if df is None:
+            st.error("Data tracking failure on core vector frame.")
+            return
+        with st.spinner(f"Generating {model_title} Meteogram Plot..."):
+            # 1. Initialize the figure and subplots
+            fig, axs = plt.subplots(7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1, 2.8, 1.2]} )
+            
+            # 2. ADDED: Force the main figure canvas background to be transparent
+            fig.patch.set_facecolor('none')
+            fig.patch.set_alpha(0.0)
+    
+            # 3. ADDED: Force each subplot background to be transparent
+            for ax in axs:
+                ax.patch.set_facecolor('none')
+                ax.patch.set_alpha(0.0)
+    
+            # 4. Continue with layout adjustments and plotting...
+            plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
+            axs[0].set_title(f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", fontsize=14, weight="bold", pad=12 )
+            # ... (rest of your plotting code remains the same)
 
             axs[0].plot(df["time"], df["pressure_msl"], color="blue")
             axs[0].set_ylabel("SLP\n(hPa)", color="blue")
