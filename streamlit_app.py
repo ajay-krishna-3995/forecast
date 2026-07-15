@@ -65,6 +65,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True
 )
+/* Intercept all click actions in the bottom right corner */
+.stApp::after {
+    content: "";
+    position: fixed;
+    bottom: 0px;
+    right: 0px;
+    width: 250px; /* Covers the profile name and icon area */
+    height: 60px; /* Covers the badge height */
+    z-index: 999999;
+    background: transparent; /* Invisible but physically blocks clicks */
+    pointer-events: auto !important;
+}
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
