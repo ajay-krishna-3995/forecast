@@ -206,6 +206,9 @@ else:
 # -------------------------------------------------------------------------------
 # 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav)
 # -------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav, and viewer badge)
+# -------------------------------------------------------------------------------
 st.markdown("""
     <style>
     /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
@@ -228,20 +231,17 @@ st.markdown("""
         visibility: hidden !important; 
     }
     
-    /* Strict target for the viewer footer container to block interaction */
-    [data-testid="stViewerFooter"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
+    /* Target and hide the bottom right viewer badge container, the hosted ribbon, and your profile image */
+    [data-testid="stViewerFooter"],
+    [class*="viewerBadge"],
+    [class*="Profile"],
     .viewerBadge_container__1QSob, 
     .styles_viewerBadge__1yB5_, 
     .viewerBadge_link__1S137, 
-    .viewerBadge_text__1JaDK,
-    [class^="viewerBadge_"] {
+    .viewerBadge_text__1JaDK {
         display: none !important;
         visibility: hidden !important;
+        opacity: 0 !important;
     }
     
     /* Adjust top padding so your title doesn't look cut off */
