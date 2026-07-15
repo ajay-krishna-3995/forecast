@@ -66,6 +66,15 @@ def generate_meteogram_fig(df, lat, lon, days):
     )
     plt.subplots_adjust(left=0.18, right=0.95, top=0.94, bottom=0.06, hspace=0.22)
 
+    # Force the main figure canvas background to be transparent
+    fig.patch.set_facecolor('none')
+    fig.patch.set_alpha(0.0)
+
+    for ax in axs:
+        # Force each subplot background to be transparent
+        ax.patch.set_facecolor('none')
+        ax.patch.set_alpha(0.0)
+
     fig.suptitle(
         f"ECMWF IFS Model {days}-Day Forecast Meteogram\nLocation: ({lon}°E, {lat}°N)", 
         fontsize=16, weight="bold", color="#1a1a1a"
