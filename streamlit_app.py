@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
-LOCAL_IMAGE_PATH = Background.jpg
+LOCAL_IMAGE_PATH = "Background.jpg"
 
 def get_base64_image(image_path):
     """Reads a local image file and converts it to a base64 string."""
