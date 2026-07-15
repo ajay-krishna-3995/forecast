@@ -609,165 +609,165 @@ with tab_meteogram:
         "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
     }
 
-def render_meteogram(df, model_title):
-        if df is None:
-            st.error("Data tracking failure on core vector frame.")
-            return
-        with st.spinner(f"Generating {model_title} Meteogram Plot..."):
-            # 1. Initialize the figure and subplots
-            fig, axs = plt.subplots(7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1, 2.8, 1.2]} )
-            
-            # 2. Force the main figure canvas background to be transparent
-            fig.patch.set_facecolor('none')
-            fig.patch.set_alpha(0.0)
+    def render_meteogram(df, model_title):
+            if df is None:
+                st.error("Data tracking failure on core vector frame.")
+                return
+            with st.spinner(f"Generating {model_title} Meteogram Plot..."):
+                # 1. Initialize the figure and subplots
+                fig, axs = plt.subplots(7, 1, figsize=(14, 18), sharex=True, gridspec_kw={"height_ratios": [1, 1, 2.5, 1, 1, 2.8, 1.2]} )
+                
+                # 2. Force the main figure canvas background to be transparent
+                fig.patch.set_facecolor('none')
+                fig.patch.set_alpha(0.0)
+        
+                # 3. Force each subplot background to be transparent
+                for ax in axs:
+                    ax.patch.set_facecolor('none')
+                    ax.patch.set_alpha(0.0)
+        
+                # 4. Continue with layout adjustments and plotting...
+                plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
+                
+                # CHANGED: Main title color set to white
+                axs[0].set_title(f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", fontsize=14, weight="bold", pad=12, color="white" )
     
-            # 3. Force each subplot background to be transparent
-            for ax in axs:
-                ax.patch.set_facecolor('none')
-                ax.patch.set_alpha(0.0)
+                # --- Plotting Subplots ---
     
-            # 4. Continue with layout adjustments and plotting...
-            plt.subplots_adjust(left=0.18, right=0.92, top=0.94, bottom=0.05, hspace=0.35)
-            
-            # CHANGED: Main title color set to white
-            axs[0].set_title(f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", fontsize=14, weight="bold", pad=12, color="white" )
-
-            # --- Plotting Subplots ---
-
-            # Subplot 0: SLP
-            axs[0].plot(df["time"], df["pressure_msl"], color="cyan")  # Changed from blue for contrast
-            axs[0].set_ylabel("SLP\n(hPa)", color="white")
-
-            # Subplot 1: CAPE
-            axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
-            axs[1].set_ylabel("CAPE\n(J/kg)", color="white")
-
-            # Subplot 2: Wind Profile
-            ax_wind = axs[2]
-            api_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
-            display_labels = ["10m (Surface)", "100m", "1000 hPa (~110m)", "180m", "200m"]
-            
-            time_numbers = mdates.date2num(df["time"])
-            skip = 3
-            barb_times = time_numbers[::skip]
-
-            for idx, lvl_str in enumerate(api_levels):
-                speed_col = f"wind_speed_{lvl_str}"
-                dir_col = f"wind_direction_{lvl_str}"
-                if speed_col in df.columns and dir_col in df.columns:
-                    speeds_ms = df[speed_col].fillna(0).astype(float).iloc[::skip] / 3.6
-                    dirs = df[dir_col].fillna(0).astype(float).iloc[::skip]
-                else:
-                    continue
-                rad = np.deg2rad(dirs)
-                u_vec = -speeds_ms * np.sin(rad)
-                v_vec = -speeds_ms * np.cos(rad)
-                y_pos = np.full_like(barb_times, idx)
-                # CHANGED: Wind barbs color set to light grey/white for visibility
-                ax_wind.barbs(barb_times, y_pos, u_vec, v_vec, length=6.0, color="#ecf0f1", linewidth=0.9)
-
-            ax_wind.set_yticks(range(len(api_levels)))
-            ax_wind.set_yticklabels(display_labels, fontsize=9, color="white")
-            ax_wind.set_ylabel("Wind Profile\n(Low Levels)", color="#ff7700", weight="bold")
-            ax_wind.set_ylim(-0.5, len(api_levels) - 0.5)
-
-            # Subplot 3: Relative Humidity
-            axs[3].plot(df["time"], df["relative_humidity_2m"], color="limegreen")
-            axs[3].fill_between(df["time"], df["relative_humidity_2m"], 0, color="limegreen", alpha=0.3)
-            axs[3].set_ylabel("2m RH\n (%)", color="white")
-            axs[3].set_ylim(0, 100)
-
-            # Subplot 4: Temperature
-            axs[4].plot(df["time"], df["temperature_2m"], color="red", linewidth=2)
-            axs[4].set_ylabel("Temp\n(°C)", color="white", weight="bold")
-
-            # Subplot 5: Cloud Cover Contour Plot
-            ax_cloud = axs[5]
-            num_time_steps = len(df["time"])
-            alt_grid = np.linspace(0, 14, 100)
-            cloud_matrix = np.zeros((len(alt_grid), num_time_steps))
-
-            for t in range(num_time_steps):
-                low = df["cloud_cover_low"].iloc[t]
-                mid = df["cloud_cover_mid"].iloc[t]
-                high = df["cloud_cover_high"].iloc[t]
-                layer_profile = (
-                    low * np.exp(-((alt_grid - 1.0) / 1.2) ** 2) +
-                    mid * np.exp(-((alt_grid - 4.5) / 2.5) ** 2) +
-                    high * np.exp(-((alt_grid - 9.5) / 3.0) ** 2)
+                # Subplot 0: SLP
+                axs[0].plot(df["time"], df["pressure_msl"], color="cyan")  # Changed from blue for contrast
+                axs[0].set_ylabel("SLP\n(hPa)", color="white")
+    
+                # Subplot 1: CAPE
+                axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
+                axs[1].set_ylabel("CAPE\n(J/kg)", color="white")
+    
+                # Subplot 2: Wind Profile
+                ax_wind = axs[2]
+                api_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
+                display_labels = ["10m (Surface)", "100m", "1000 hPa (~110m)", "180m", "200m"]
+                
+                time_numbers = mdates.date2num(df["time"])
+                skip = 3
+                barb_times = time_numbers[::skip]
+    
+                for idx, lvl_str in enumerate(api_levels):
+                    speed_col = f"wind_speed_{lvl_str}"
+                    dir_col = f"wind_direction_{lvl_str}"
+                    if speed_col in df.columns and dir_col in df.columns:
+                        speeds_ms = df[speed_col].fillna(0).astype(float).iloc[::skip] / 3.6
+                        dirs = df[dir_col].fillna(0).astype(float).iloc[::skip]
+                    else:
+                        continue
+                    rad = np.deg2rad(dirs)
+                    u_vec = -speeds_ms * np.sin(rad)
+                    v_vec = -speeds_ms * np.cos(rad)
+                    y_pos = np.full_like(barb_times, idx)
+                    # CHANGED: Wind barbs color set to light grey/white for visibility
+                    ax_wind.barbs(barb_times, y_pos, u_vec, v_vec, length=6.0, color="#ecf0f1", linewidth=0.9)
+    
+                ax_wind.set_yticks(range(len(api_levels)))
+                ax_wind.set_yticklabels(display_labels, fontsize=9, color="white")
+                ax_wind.set_ylabel("Wind Profile\n(Low Levels)", color="#ff7700", weight="bold")
+                ax_wind.set_ylim(-0.5, len(api_levels) - 0.5)
+    
+                # Subplot 3: Relative Humidity
+                axs[3].plot(df["time"], df["relative_humidity_2m"], color="limegreen")
+                axs[3].fill_between(df["time"], df["relative_humidity_2m"], 0, color="limegreen", alpha=0.3)
+                axs[3].set_ylabel("2m RH\n (%)", color="white")
+                axs[3].set_ylim(0, 100)
+    
+                # Subplot 4: Temperature
+                axs[4].plot(df["time"], df["temperature_2m"], color="red", linewidth=2)
+                axs[4].set_ylabel("Temp\n(°C)", color="white", weight="bold")
+    
+                # Subplot 5: Cloud Cover Contour Plot
+                ax_cloud = axs[5]
+                num_time_steps = len(df["time"])
+                alt_grid = np.linspace(0, 14, 100)
+                cloud_matrix = np.zeros((len(alt_grid), num_time_steps))
+    
+                for t in range(num_time_steps):
+                    low = df["cloud_cover_low"].iloc[t]
+                    mid = df["cloud_cover_mid"].iloc[t]
+                    high = df["cloud_cover_high"].iloc[t]
+                    layer_profile = (
+                        low * np.exp(-((alt_grid - 1.0) / 1.2) ** 2) +
+                        mid * np.exp(-((alt_grid - 4.5) / 2.5) ** 2) +
+                        high * np.exp(-((alt_grid - 9.5) / 3.0) ** 2)
+                    )
+                    cloud_matrix[:, t] = np.clip(layer_profile, 0, 100)
+    
+                cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.5, 1.0))
+                cloud_colors = ["#ffffff", "#e0e0e0", "#b8b8b8", "#8c8c8c", "#686868", "#444444"]
+                cloud_bounds = [0, 10, 25, 50, 75, 90, 100]
+                cmap_cloud = ListedColormap(cloud_colors)
+                norm_cloud = BoundaryNorm(cloud_bounds, cmap_cloud.N)
+    
+                cloud_contour = ax_cloud.contourf(
+                    time_numbers, alt_grid, cloud_matrix_smooth,
+                    levels=cloud_bounds, cmap=cmap_cloud, norm=norm_cloud, extend='max'
                 )
-                cloud_matrix[:, t] = np.clip(layer_profile, 0, 100)
-
-            cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.5, 1.0))
-            cloud_colors = ["#ffffff", "#e0e0e0", "#b8b8b8", "#8c8c8c", "#686868", "#444444"]
-            cloud_bounds = [0, 10, 25, 50, 75, 90, 100]
-            cmap_cloud = ListedColormap(cloud_colors)
-            norm_cloud = BoundaryNorm(cloud_bounds, cmap_cloud.N)
-
-            cloud_contour = ax_cloud.contourf(
-                time_numbers, alt_grid, cloud_matrix_smooth,
-                levels=cloud_bounds, cmap=cmap_cloud, norm=norm_cloud, extend='max'
-            )
-
-            ax_cloud.contour(
-                time_numbers, alt_grid, cloud_matrix_smooth,
-                levels=[15, 50, 85], colors="#555555", linewidths=0.5, alpha=0.6
-            )
-
-            ax_cloud.set_ylim(0, 14)
-            ax_cloud.tick_params(axis='y', labelleft=True, colors="white")
-
-            for height in [1.5, 3.5, 6.0, 9.0]:
-                ax_cloud.axhline(height, color="dimgray", linestyle=":", linewidth=0.8, alpha=0.6)
-                # CHANGED: Guideline text tags set to white
-                ax_cloud.text(time_numbers[-1], height + 0.1, f"{height}", fontsize=8, color="white", ha="left")
-
-            # CHANGED: Cloud layer annotation text set to white
-            ax_cloud.text(time_numbers[0], 1.2, " Low-Level", fontsize=9, color="white", weight="bold", va="center")
-            ax_cloud.text(time_numbers[0], 5.0, " Mid-Level", fontsize=9, color="white", weight="bold", va="center")
-            ax_cloud.text(time_numbers[0], 10.0, " High-Level", fontsize=9, color="white", weight="bold", va="center")
-            ax_cloud.set_ylabel("Altitude\n(km)", color="white")
-
-            fig.canvas.draw()
-            pos = ax_cloud.get_position()
-
-            cax = fig.add_axes([pos.x0 - 0.10, pos.y0 + (pos.height * 0.1), 0.015, pos.height * 0.8])
-            cbar = fig.colorbar(cloud_contour, cax=cax, orientation="vertical", ticks=cloud_bounds, extendfrac=0)
-            cbar.ax.yaxis.set_label_position('left')
-            cbar.ax.yaxis.set_ticks_position('left')
-            
-            # CHANGED: Colorbar labels and text colors set to white
-            cbar.ax.tick_params(colors="white")
-            cbar.set_label("Cloud cover (%)", fontsize=10, weight="bold", labelpad=10, color="white")
-            cbar.outline.set_edgecolor('white')
-
-            # Subplot 6: Precipitation
-            axs[6].bar(df["time"], df["precipitation"], width=0.04, color="lightgreen", label="Precip")
-            axs[6].set_ylabel("Precip\n(mm)", color="white")
-            total_precip = df["precipitation"].sum()
-            # CHANGED: Total info card text set to white
-            axs[6].text(0.95, 0.85, f"{DAYS}-Day Total = {total_precip:.2f} mm", transform=axs[6].transAxes, ha="right", weight="bold", color="white")
-
-            axs[-1].xaxis.set_major_locator(mdates.DayLocator())
-            axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d\n%b"))
-
-            # --- Global Axis Color Formatting Loop ---
-            for ax in axs:
-                ax.grid(True, which="major", axis="x", color="grey", linestyle="--", alpha=0.4)
-                if ax != ax_cloud and ax != ax_wind:
-                    ax.grid(True, which="major", axis="y", color="lightgrey", linestyle=":", alpha=0.5)
+    
+                ax_cloud.contour(
+                    time_numbers, alt_grid, cloud_matrix_smooth,
+                    levels=[15, 50, 85], colors="#555555", linewidths=0.5, alpha=0.6
+                )
+    
+                ax_cloud.set_ylim(0, 14)
+                ax_cloud.tick_params(axis='y', labelleft=True, colors="white")
+    
+                for height in [1.5, 3.5, 6.0, 9.0]:
+                    ax_cloud.axhline(height, color="dimgray", linestyle=":", linewidth=0.8, alpha=0.6)
+                    # CHANGED: Guideline text tags set to white
+                    ax_cloud.text(time_numbers[-1], height + 0.1, f"{height}", fontsize=8, color="white", ha="left")
+    
+                # CHANGED: Cloud layer annotation text set to white
+                ax_cloud.text(time_numbers[0], 1.2, " Low-Level", fontsize=9, color="white", weight="bold", va="center")
+                ax_cloud.text(time_numbers[0], 5.0, " Mid-Level", fontsize=9, color="white", weight="bold", va="center")
+                ax_cloud.text(time_numbers[0], 10.0, " High-Level", fontsize=9, color="white", weight="bold", va="center")
+                ax_cloud.set_ylabel("Altitude\n(km)", color="white")
+    
+                fig.canvas.draw()
+                pos = ax_cloud.get_position()
+    
+                cax = fig.add_axes([pos.x0 - 0.10, pos.y0 + (pos.height * 0.1), 0.015, pos.height * 0.8])
+                cbar = fig.colorbar(cloud_contour, cax=cax, orientation="vertical", ticks=cloud_bounds, extendfrac=0)
+                cbar.ax.yaxis.set_label_position('left')
+                cbar.ax.yaxis.set_ticks_position('left')
                 
-                # CHANGED: Enforces all axis tick numbers, borders, and labels to be white
-                ax.tick_params(axis='both', colors='white', labelsize=10)
-                ax.xaxis.label.set_color('white')
-                ax.yaxis.label.set_color('white')
-                
-                for spine in ax.spines.values():
-                    spine.set_edgecolor('white')
-
-            st.pyplot(fig)
-            with st.expander(f"🔍 View Raw Forecast Array ({model_title})"):
-                st.dataframe(df)
+                # CHANGED: Colorbar labels and text colors set to white
+                cbar.ax.tick_params(colors="white")
+                cbar.set_label("Cloud cover (%)", fontsize=10, weight="bold", labelpad=10, color="white")
+                cbar.outline.set_edgecolor('white')
+    
+                # Subplot 6: Precipitation
+                axs[6].bar(df["time"], df["precipitation"], width=0.04, color="lightgreen", label="Precip")
+                axs[6].set_ylabel("Precip\n(mm)", color="white")
+                total_precip = df["precipitation"].sum()
+                # CHANGED: Total info card text set to white
+                axs[6].text(0.95, 0.85, f"{DAYS}-Day Total = {total_precip:.2f} mm", transform=axs[6].transAxes, ha="right", weight="bold", color="white")
+    
+                axs[-1].xaxis.set_major_locator(mdates.DayLocator())
+                axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d\n%b"))
+    
+                # --- Global Axis Color Formatting Loop ---
+                for ax in axs:
+                    ax.grid(True, which="major", axis="x", color="grey", linestyle="--", alpha=0.4)
+                    if ax != ax_cloud and ax != ax_wind:
+                        ax.grid(True, which="major", axis="y", color="lightgrey", linestyle=":", alpha=0.5)
+                    
+                    # CHANGED: Enforces all axis tick numbers, borders, and labels to be white
+                    ax.tick_params(axis='both', colors='white', labelsize=10)
+                    ax.xaxis.label.set_color('white')
+                    ax.yaxis.label.set_color('white')
+                    
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('white')
+    
+                st.pyplot(fig)
+                with st.expander(f"🔍 View Raw Forecast Array ({model_title})"):
+                    st.dataframe(df)
 
     for model_key, cfg in models_config.items():
         with cfg["tab"]:
