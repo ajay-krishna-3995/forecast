@@ -63,16 +63,17 @@ st.markdown("""
         padding-top: 2rem !important; 
     }
 
-    /* Intercept all click actions in the bottom right corner (Blocks profile badge access) */
+    /* Create an iron-clad click barrier along the entire bottom of the app window */
     .stApp::after {
         content: "";
-        position: fixed;
-        bottom: 0px;
-        right: 0px;
-        width: 250px; /* Covers the profile name and icon area */
-        height: 60px; /* Covers the badge height */
-        z-index: 999999;
-        background: transparent; /* Invisible but physically blocks clicks */
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        height: 70px !important;
+        z-index: 9999999 !important;
+        background: transparent !important;
         pointer-events: auto !important;
     }
     </style>
