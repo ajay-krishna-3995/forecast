@@ -15,17 +15,194 @@ from scipy.ndimage import gaussian_filter
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
-
+import base64
 
 # -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP
+# 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
 # -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP
 st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon", 
-    page_icon="⛈️", 
+    page_title="Weather, Air Quality & Monsoon",
+    page_icon="⛈️",
     layout="wide"
 )
+
+# Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
+LOCAL_IMAGE_PATH = "D:\\ajay\\Background.jpg"
+
+def get_base64_image(image_path):
+    """Reads a local image file and converts it to a base64 string."""
+    try:
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+        return f"data:image/jpeg;base64,{encoded_string}"
+    except FileNotFoundError:
+        return None
+
+# Convert the image to base64
+img_base64 = get_base64_image(LOCAL_IMAGE_PATH)
+
+# Add theme controller to the sidebar
+st.sidebar.markdown("### 🎨 Theme Customizer")
+
+# Slider to adjust the background image opacity
+bg_opacity = st.sidebar.slider(
+    "Background Image Opacity", 
+    min_value=0.0, 
+    max_value=1.0, 
+    value=0.30, 
+    step=0.05,
+    help="Adjust image visibility. Keep low (0.15 - 0.35) for maximum data readability."
+)
+
+# Calculate dynamic alpha transparencies for both modes
+light_alpha = round(1.0 - (bg_opacity * 0.95), 2)  # White overlay
+dark_alpha = round(1.0 - (bg_opacity * 0.70), 2)   # Dark overlay
+
+if img_base64:
+    st.markdown(
+        f"""
+        <style>
+        /* =====================================================================
+           GLOBAL BASE STYLES
+           ===================================================================== */
+        .stApp {{
+            background-image: url("{img_base64}");
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+        }}
+
+        /* =====================================================================
+           ☀️ LIGHT THEME STYLES (Supports system and manual Streamlit light mode)
+           ===================================================================== */
+        @media (prefers-color-scheme: light) {{
+            .stApp {{
+                background-color: rgba(255, 255, 255, {light_alpha}) !important;
+                background-blend-mode: overlay;
+            }}
+            /* High contrast dark text for light backgrounds */
+            .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp label, .stApp span, .stApp li {{
+                color: #111827 !important;
+            }}
+            /* Soft light sidebar styling */
+            [data-testid="stSidebar"] {{
+                background-color: rgba(243, 244, 246, 0.95) !important;
+            }}
+            [data-testid="stSidebar"] * {{
+                color: #111827 !important;
+            }}
+            
+            /* Input Widgets (Selectbox and Number Inputs) */
+            div[data-baseweb="select"], div[data-baseweb="input"], .stNumberInput input, .stSelectbox div {{
+                background-color: #ffffff !important;
+                color: #111827 !important;
+                border: 1px solid #cbd5e1 !important;
+            }}
+            /* Force dropdown search & select values to be dark */
+            div[data-baseweb="select"] *, .stSelectbox span, .stSelectbox div {{
+                color: #111827 !important;
+            }}
+            /* Coordinate plus/minus control buttons */
+            .stNumberInput button {{
+                background-color: #f1f5f9 !important;
+                color: #111827 !important;
+                border: 1px solid #cbd5e1 !important;
+            }}
+            .stNumberInput button:hover {{
+                background-color: #e2e8f0 !important;
+            }}
+        }}
+
+        /* Force overrides when light theme is explicitly selected in settings */
+        [data-theme="light"] .stApp {{
+            background-color: rgba(255, 255, 255, {light_alpha}) !important;
+            background-blend-mode: overlay;
+        }}
+        [data-theme="light"] .stApp, [data-theme="light"] p, [data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3, [data-theme="light"] h4, [data-theme="light"] h5, [data-theme="light"] h6, [data-theme="light"] label, [data-theme="light"] span {{
+            color: #111827 !important;
+        }}
+        [data-theme="light"] div[data-baseweb="select"], [data-theme="light"] div[data-baseweb="input"], [data-theme="light"] .stNumberInput input, [data-theme="light"] .stSelectbox div {{
+            background-color: #ffffff !important;
+            color: #111827 !important;
+            border: 1px solid #cbd5e1 !important;
+        }}
+        [data-theme="light"] div[data-baseweb="select"] *, [data-theme="light"] .stSelectbox span, [data-theme="light"] .stSelectbox div {{
+            color: #111827 !important;
+        }}
+        [data-theme="light"] .stNumberInput button {{
+            background-color: #f1f5f9 !important;
+            color: #111827 !important;
+            border: 1px solid #cbd5e1 !important;
+        }}
+
+        /* =====================================================================
+           🌙 DARK THEME STYLES (Supports system and manual Streamlit dark mode)
+           ===================================================================== */
+        @media (prefers-color-scheme: dark) {{
+            .stApp {{
+                background-color: rgba(15, 23, 42, {dark_alpha}) !important; /* Rich deep navy/slate overlay */
+                background-blend-mode: overlay;
+            }}
+            /* Clean off-white text for dark mode elements */
+            .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp label, .stApp span, .stApp li {{
+                color: #f3f4f6 !important;
+            }}
+            /* Translucent dark sidebar */
+            [data-testid="stSidebar"] {{
+                background-color: rgba(17, 24, 39, 0.95) !important;
+            }}
+            [data-testid="stSidebar"] * {{
+                color: #f3f4f6 !important;
+            }}
+            
+            /* Input Widgets (Selectbox and Number Inputs) */
+            div[data-baseweb="select"], div[data-baseweb="input"], .stNumberInput input, .stSelectbox div {{
+                background-color: #1e293b !important;
+                color: #ffffff !important;
+                border: 1px solid #475569 !important;
+            }}
+            div[data-baseweb="select"] *, .stSelectbox span, .stSelectbox div {{
+                color: #ffffff !important;
+            }}
+            /* Coordinate plus/minus control buttons */
+            .stNumberInput button {{
+                background-color: #334155 !important;
+                color: #ffffff !important;
+                border: 1px solid #475569 !important;
+            }}
+            .stNumberInput button:hover {{
+                background-color: #475569 !important;
+            }}
+        }}
+
+        /* Force overrides when dark theme is explicitly selected in settings */
+        [data-theme="dark"] .stApp {{
+            background-color: rgba(15, 23, 42, {dark_alpha}) !important;
+            background-blend-mode: overlay;
+        }}
+        [data-theme="dark"] .stApp, [data-theme="dark"] p, [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6, [data-theme="dark"] label, [data-theme="dark"] span {{
+            color: #f3f4f6 !important;
+        }}
+        [data-theme="dark"] div[data-baseweb="select"], [data-theme="dark"] div[data-baseweb="input"], [data-theme="dark"] .stNumberInput input, [data-theme="dark"] .stSelectbox div {{
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            border: 1px solid #475569 !important;
+        }}
+        [data-theme="dark"] div[data-baseweb="select"] *, [data-theme="dark"] .stSelectbox span, [data-theme="dark"] .stSelectbox div {{
+            color: #ffffff !important;
+        }}
+        [data-theme="dark"] .stNumberInput button {{
+            background-color: #334155 !important;
+            color: #ffffff !important;
+            border: 1px solid #475569 !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
+# -------------------------------------------------------------------------------
 # 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and locks out viewer profile badge)
 st.markdown("""
     <style>
@@ -101,7 +278,7 @@ MAJOR_CITIES = {
 }
 
 # Configurable Path Constants for India Spatial Modeling
-SHAPEFILE_PATH = "India-State-and-Country-Shapefile-Updated-Jan-2020-master"
+SHAPEFILE_PATH = "D:\\ajay\\India-State-and-Country-Shapefile-Updated-Jan-2020-master\\India_Country_Boundary.shp"
 IMD_LEVELS = [0, 0.1, 2.4, 7.5, 15.5, 35.5, 64.4, 115.5, 204.4, 300]
 IMD_COLORS = ['#ffffff', '#e3f2fd', '#90caf9', '#4caf50', '#2e7d32', '#fff59d', '#fbc02d', '#ff9800', '#b71c1c']
 MAP_CITIES = {
