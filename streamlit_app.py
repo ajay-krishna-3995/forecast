@@ -25,7 +25,36 @@ st.set_page_config(
     page_icon="⛈️",
     layout="wide"
 )
+html('''
+<script>
+    function hideViewerBadge() {
+        // Target the parent document structure containing the sharing container
+        const parentDoc = window.top.document;
+        
+        // Target the hosting redirect links
+        parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.width = '0px';
+            el.style.height = '0px';
+        });
+        
+        // Target the profile avatar wrappers and custom container classes
+        parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.width = '0px';
+            el.style.height = '0px';
+        });
+    }
 
+    // Fire immediately upon initialization
+    hideViewerBadge();
+    
+    // Periodically run a DOM sweep to prevent the badge from reappearing
+    setInterval(hideViewerBadge, 500);
+</script>
+''', height=0, width=0)
 # Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
 LOCAL_IMAGE_PATH = "Background.jpg"
 
@@ -203,7 +232,7 @@ if img_base64:
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
 # -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav, and viewer badge)
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav inside the iframe)
 # -------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -227,17 +256,20 @@ st.markdown("""
         visibility: hidden !important; 
     }
     
-    /* Target and hide the bottom right viewer badge container, the hosted ribbon, and your profile image */
-    [data-testid="stViewerFooter"],
-    [class*="viewerBadge"],
-    [class*="Profile"],
+    /* Strict target for the viewer footer container to block interaction */
+    [data-testid="stViewerFooter"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
     .viewerBadge_container__1QSob, 
     .styles_viewerBadge__1yB5_, 
     .viewerBadge_link__1S137, 
-    .viewerBadge_text__1JaDK {
+    .viewerBadge_text__1JaDK,
+    [class^="viewerBadge_"] {
         display: none !important;
         visibility: hidden !important;
-        opacity: 0 !important;
     }
     
     /* Adjust top padding so your title doesn't look cut off */
