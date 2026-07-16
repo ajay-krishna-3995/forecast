@@ -545,31 +545,34 @@ with tab_home:
                 total_24h_rain = forecast_alert_df["precipitation"].sum()
                 peak_24h_rate = forecast_alert_df["precipitation"].max()
                 
-            if total_24h_rain > 75 or peak_24h_rate > 20:
-                st.error(
-                    f"🔴 **Heavy Rain Warning**\n\n"
-                    f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
-                    f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
-                    f"and travel disruptions. Stay updated with local weather advisories."
-                )
-            elif total_24h_rain > 25 or peak_24h_rate > 8:
-                st.warning(
-                    f"🟡 **Rain Advisory**\n\n"
-                    f"Moderate to heavy rainfall is likely during the next 24 hours "
-                    f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
-                    f"while travelling, especially in low-lying areas."
-                )
-            elif total_24h_rain > 0.2:
-                st.info(
-                    f"🔵 **Light Rain Expected**\n\n"
-                    f"Light to moderate showers are expected over the next 24 hours "
-                    f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
-                )
+                # --- [FIXED] INDENTED LOGIC PREVENTS CRASH IF forecast_alert_df IS NONE ---
+                if total_24h_rain > 75 or peak_24h_rate > 20:
+                    st.error(
+                        f"🔴 **Heavy Rain Warning**\n\n"
+                        f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
+                        f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
+                        f"and travel disruptions. Stay updated with local weather advisories."
+                    )
+                elif total_24h_rain > 25 or peak_24h_rate > 8:
+                    st.warning(
+                        f"🟡 **Rain Advisory**\n\n"
+                        f"Moderate to heavy rainfall is likely during the next 24 hours "
+                        f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
+                        f"while travelling, especially in low-lying areas."
+                    )
+                elif total_24h_rain > 0.2:
+                    st.info(
+                        f"🔵 **Light Rain Expected**\n\n"
+                        f"Light to moderate showers are expected over the next 24 hours "
+                        f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
+                    )
+                else:
+                    st.success(
+                        "🟢 **No Significant Rain Expected**\n\n"
+                        "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
+                    )
             else:
-                st.success(
-                    "🟢 **No Significant Rain Expected**\n\n"
-                    "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
-                )
+                st.warning("⚠️ No rainfall forecast data is available for this location.")
 
         with dash_col2:
             st.markdown("#### 🍃 Live Air Quality Index (AQI)")
