@@ -203,6 +203,64 @@ if img_base64:
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
 # -------------------------------------------------------------------------------
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav, and viewer badge)
+# -------------------------------------------------------------------------------
+st.markdown("""
+    <style>
+    /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0px !important;
+    }
+
+    /* Completely eliminate the top header bar and its actions */
+    header, .stAppHeader, [data-testid="stHeader"] {
+        display: none !important; 
+        visibility: hidden !important; 
+        height: 0px !important; 
+    }
+    
+    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
+    footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
+        display: none !important; 
+        visibility: hidden !important; 
+    }
+    
+    /* Target and hide the bottom right viewer badge container, the hosted ribbon, and your profile image */
+    [data-testid="stViewerFooter"],
+    [class*="viewerBadge"],
+    [class*="Profile"],
+    .viewerBadge_container__1QSob, 
+    .styles_viewerBadge__1yB5_, 
+    .viewerBadge_link__1S137, 
+    .viewerBadge_text__1JaDK {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+    }
+    
+    /* Adjust top padding so your title doesn't look cut off */
+    .block-container {
+        padding-top: 2rem !important; 
+    }
+
+    /* Create an iron-clad click barrier along the entire bottom of the app window */
+    .stApp::after {
+        content: "";
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        height: 70px !important;
+        z-index: 9999999 !important;
+        background: transparent !important;
+        pointer-events: auto !important;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
 # -------------------------------------------------------------------------------
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
