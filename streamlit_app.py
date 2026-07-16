@@ -17,50 +17,14 @@ from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import base64
 
-# --- IMPORT HTML FOR THE JAVASCRIPT HACK ---
-from streamlit.components.v1 import html
-
 # -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP & PARENT ELEMENT REMOVAL (JAVASCRIPT)
+# 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
 # -------------------------------------------------------------------------------
 st.set_page_config(
     page_title="Weather, Air Quality & Monsoon",
     page_icon="⛈️",
     layout="wide"
 )
-
-# JavaScript snippet that executes outside of your app's iframe
-# to completely find and hide the parent Streamlit Cloud profile badge & crown
-html('''
-<script>
-    function hideViewerBadge() {
-        // Target the parent document structure containing the sharing container
-        const parentDoc = window.top.document;
-        
-        // Target the hosting redirect links
-        parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.width = '0px';
-            el.style.height = '0px';
-        });
-        
-        // Target the profile avatar wrappers and custom container classes
-        parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.width = '0px';
-            el.style.height = '0px';
-        });
-    }
-
-    // Fire immediately upon initialization
-    hideViewerBadge();
-    
-    // Periodically run a DOM sweep to prevent the badge from reappearing
-    setInterval(hideViewerBadge, 500);
-</script>
-''', height=0, width=0)
 
 # Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
 LOCAL_IMAGE_PATH = "Background.jpg"
@@ -238,19 +202,10 @@ if img_base64:
     )
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
-
 # -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, native nav inside the iframe)
-# -------------------------------------------------------------------------------
+# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and locks out viewer profile badge)
 st.markdown("""
     <style>
-    /* Completely eliminate Streamlit's native sidebar multipage navigation link block */
-    [data-testid="stSidebarNav"] {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0px !important;
-    }
-
     /* Completely eliminate the top header bar and its actions */
     header, .stAppHeader, [data-testid="stHeader"] {
         display: none !important; 
@@ -301,7 +256,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True
 )
-
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
@@ -335,7 +289,7 @@ MAP_CITIES = {
 }
 
 # -------------------------------------------------------------------------------
-# 3. STATE MANAGER & BI-DIRECTIONAL LOCATION SYNCHRONIZATION
+# 2. STATE MANAGER & BI-DIRECTIONAL LOCATION SYNCHRONIZATION
 # -------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state.lat = 19.076  # Defaulting to Mumbai
@@ -358,7 +312,7 @@ def sync_city_dropdown():
             break
 
 # -------------------------------------------------------------------------------
-# 4. GLOBAL SIDEBAR CONTROLS (UNIVERSAL TARGET SELECTOR)
+# 3. GLOBAL SIDEBAR CONTROLS (UNIVERSAL TARGET SELECTOR)
 # -------------------------------------------------------------------------------
 st.sidebar.header("📍 Location Navigator")
 
@@ -415,7 +369,7 @@ if map_data and map_data.get("last_clicked"):
 DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
 
 # -------------------------------------------------------------------------------
-# 5. DATA RETRIEVAL PIPELINES (WEATHER, FORECAST & AIR QUALITY)
+# 4. DATA RETRIEVAL PIPELINES (WEATHER, FORECAST & AIR QUALITY)
 # -------------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def get_location_name(lat, lon):
@@ -493,10 +447,49 @@ def fetch_weather_data(lat, lon, days, model_id):
     except Exception:
         return None
 
+# Monsoon Specific Grid Retrieval Pipeline
+@st.cache_data(show_spinner="Extracting National Synoptic Grid Matrix via Open-Meteo POST...")
+def fetch_india_grid_forecast():
+    lats = np.linspace(6.0, 38.0, 25)
+    lons = np.linspace(68.0, 98.0, 25)
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    flat_lats, flat_lons = lat_grid.flatten(), lon_grid.flatten()
+    
+    lat_string = ",".join(map(str, np.round(flat_lats, 3)))
+    lon_string = ",".join(map(str, np.round(flat_lons, 3)))
+    
+    url = "https://api.open-meteo.com/v1/forecast"
+    payload = {
+        "latitude": lat_string,
+        "longitude": lon_string,
+        "hourly": "precipitation",
+        "models": "ecmwf_ifs",
+        "forecast_days": 1,
+        "timezone": "Asia/Kolkata"
+    }
+    
+    response = requests.post(url, data=payload, timeout=45)
+    if response.status_code != 200:
+        return None
+        
+    data = response.json()
+    if isinstance(data, dict):
+        data = [data]
+        
+    records = []
+    for item in data:
+        rain_array = item["hourly"]["precipitation"]
+        records.append({
+            "lat": item["latitude"],
+            "lon": item["longitude"],
+            "precip": sum(rain_array[:24])
+        })
+    return pd.DataFrame(records)
+
 location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 
 # -------------------------------------------------------------------------------
-# 6. WORKSPACE TAB COMPOSITIONS
+# 5. WORKSPACE TAB COMPOSITIONS
 # -------------------------------------------------------------------------------
 tab_home, tab_meteogram, tab_monsoon = st.tabs([
     "🏡 Home",
@@ -545,34 +538,31 @@ with tab_home:
                 total_24h_rain = forecast_alert_df["precipitation"].sum()
                 peak_24h_rate = forecast_alert_df["precipitation"].max()
                 
-                # --- [FIXED] INDENTED LOGIC PREVENTS CRASH IF forecast_alert_df IS NONE ---
-                if total_24h_rain > 75 or peak_24h_rate > 20:
-                    st.error(
-                        f"🔴 **Heavy Rain Warning**\n\n"
-                        f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
-                        f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
-                        f"and travel disruptions. Stay updated with local weather advisories."
-                    )
-                elif total_24h_rain > 25 or peak_24h_rate > 8:
-                    st.warning(
-                        f"🟡 **Rain Advisory**\n\n"
-                        f"Moderate to heavy rainfall is likely during the next 24 hours "
-                        f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
-                        f"while travelling, especially in low-lying areas."
-                    )
-                elif total_24h_rain > 0.2:
-                    st.info(
-                        f"🔵 **Light Rain Expected**\n\n"
-                        f"Light to moderate showers are expected over the next 24 hours "
-                        f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
-                    )
-                else:
-                    st.success(
-                        "🟢 **No Significant Rain Expected**\n\n"
-                        "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
-                    )
+            if total_24h_rain > 75 or peak_24h_rate > 20:
+                st.error(
+                    f"🔴 **Heavy Rain Warning**\n\n"
+                    f"Widespread heavy to very heavy rainfall is expected over the next 24 hours "
+                    f"({total_24h_rain:.1f} mm). There is a risk of waterlogging, flash flooding, "
+                    f"and travel disruptions. Stay updated with local weather advisories."
+                )
+            elif total_24h_rain > 25 or peak_24h_rate > 8:
+                st.warning(
+                    f"🟡 **Rain Advisory**\n\n"
+                    f"Moderate to heavy rainfall is likely during the next 24 hours "
+                    f"(around {total_24h_rain:.1f} mm). Keep an umbrella handy and be cautious "
+                    f"while travelling, especially in low-lying areas."
+                )
+            elif total_24h_rain > 0.2:
+                st.info(
+                    f"🔵 **Light Rain Expected**\n\n"
+                    f"Light to moderate showers are expected over the next 24 hours "
+                    f"(around {total_24h_rain:.1f} mm). Outdoor activities may be briefly affected."
+                )
             else:
-                st.warning("⚠️ No rainfall forecast data is available for this location.")
+                st.success(
+                    "🟢 **No Significant Rain Expected**\n\n"
+                    "Dry weather is expected over the next 24 hours, with no significant rainfall forecast."
+                )
 
         with dash_col2:
             st.markdown("#### 🍃 Live Air Quality Index (AQI)")
@@ -634,17 +624,17 @@ with tab_meteogram:
                 
                 # CHANGED: Main title color set to white
                 axs[0].set_title(f"{model_title} {DAYS}-Day Forecast Meteogram\n📍 Location: {location_name}", fontsize=14, weight="bold", pad=12, color="white" )
-    
+
                 # --- Plotting Subplots ---
-    
+
                 # Subplot 0: SLP
                 axs[0].plot(df["time"], df["pressure_msl"], color="cyan")  # Changed from blue for contrast
                 axs[0].set_ylabel("SLP\n(hPa)", color="white")
-    
+
                 # Subplot 1: CAPE
                 axs[1].bar(df["time"], df["cape"], width=0.03, color="purple", alpha=0.6)
                 axs[1].set_ylabel("CAPE\n(J/kg)", color="white")
-    
+
                 # Subplot 2: Wind Profile
                 ax_wind = axs[2]
                 api_levels = ["10m", "100m", "1000hPa", "180m", "200m"]
@@ -653,7 +643,7 @@ with tab_meteogram:
                 time_numbers = mdates.date2num(df["time"])
                 skip = 3
                 barb_times = time_numbers[::skip]
-    
+
                 for idx, lvl_str in enumerate(api_levels):
                     speed_col = f"wind_speed_{lvl_str}"
                     dir_col = f"wind_direction_{lvl_str}"
@@ -668,28 +658,28 @@ with tab_meteogram:
                     y_pos = np.full_like(barb_times, idx)
                     # CHANGED: Wind barbs color set to light grey/white for visibility
                     ax_wind.barbs(barb_times, y_pos, u_vec, v_vec, length=6.0, color="#ecf0f1", linewidth=0.9)
-    
+
                 ax_wind.set_yticks(range(len(api_levels)))
                 ax_wind.set_yticklabels(display_labels, fontsize=9, color="white")
                 ax_wind.set_ylabel("Wind Profile\n(Low Levels)", color="#ff7700", weight="bold")
                 ax_wind.set_ylim(-0.5, len(api_levels) - 0.5)
-    
+
                 # Subplot 3: Relative Humidity
                 axs[3].plot(df["time"], df["relative_humidity_2m"], color="limegreen")
                 axs[3].fill_between(df["time"], df["relative_humidity_2m"], 0, color="limegreen", alpha=0.3)
                 axs[3].set_ylabel("2m RH\n (%)", color="white")
                 axs[3].set_ylim(0, 100)
-    
+
                 # Subplot 4: Temperature
                 axs[4].plot(df["time"], df["temperature_2m"], color="red", linewidth=2)
                 axs[4].set_ylabel("Temp\n(°C)", color="white", weight="bold")
-    
+
                 # Subplot 5: Cloud Cover Contour Plot
                 ax_cloud = axs[5]
                 num_time_steps = len(df["time"])
                 alt_grid = np.linspace(0, 14, 100)
                 cloud_matrix = np.zeros((len(alt_grid), num_time_steps))
-    
+
                 for t in range(num_time_steps):
                     low = df["cloud_cover_low"].iloc[t]
                     mid = df["cloud_cover_mid"].iloc[t]
@@ -700,40 +690,40 @@ with tab_meteogram:
                         high * np.exp(-((alt_grid - 9.5) / 3.0) ** 2)
                     )
                     cloud_matrix[:, t] = np.clip(layer_profile, 0, 100)
-    
+
                 cloud_matrix_smooth = gaussian_filter(cloud_matrix, sigma=(1.5, 1.0))
                 cloud_colors = ["#ffffff", "#e0e0e0", "#b8b8b8", "#8c8c8c", "#686868", "#444444"]
                 cloud_bounds = [0, 10, 25, 50, 75, 90, 100]
                 cmap_cloud = ListedColormap(cloud_colors)
                 norm_cloud = BoundaryNorm(cloud_bounds, cmap_cloud.N)
-    
+
                 cloud_contour = ax_cloud.contourf(
                     time_numbers, alt_grid, cloud_matrix_smooth,
                     levels=cloud_bounds, cmap=cmap_cloud, norm=norm_cloud, extend='max'
                 )
-    
+
                 ax_cloud.contour(
                     time_numbers, alt_grid, cloud_matrix_smooth,
                     levels=[15, 50, 85], colors="#555555", linewidths=0.5, alpha=0.6
                 )
-    
+
                 ax_cloud.set_ylim(0, 14)
                 ax_cloud.tick_params(axis='y', labelleft=True, colors="white")
-    
+
                 for height in [1.5, 3.5, 6.0, 9.0]:
                     ax_cloud.axhline(height, color="dimgray", linestyle=":", linewidth=0.8, alpha=0.6)
                     # CHANGED: Guideline text tags set to white
                     ax_cloud.text(time_numbers[-1], height + 0.1, f"{height}", fontsize=8, color="white", ha="left")
-    
+
                 # CHANGED: Cloud layer annotation text set to white
                 ax_cloud.text(time_numbers[0], 1.2, " Low-Level", fontsize=9, color="white", weight="bold", va="center")
                 ax_cloud.text(time_numbers[0], 5.0, " Mid-Level", fontsize=9, color="white", weight="bold", va="center")
                 ax_cloud.text(time_numbers[0], 10.0, " High-Level", fontsize=9, color="white", weight="bold", va="center")
                 ax_cloud.set_ylabel("Altitude\n(km)", color="white")
-    
+
                 fig.canvas.draw()
                 pos = ax_cloud.get_position()
-    
+
                 cax = fig.add_axes([pos.x0 - 0.10, pos.y0 + (pos.height * 0.1), 0.015, pos.height * 0.8])
                 cbar = fig.colorbar(cloud_contour, cax=cax, orientation="vertical", ticks=cloud_bounds, extendfrac=0)
                 cbar.ax.yaxis.set_label_position('left')
@@ -743,17 +733,17 @@ with tab_meteogram:
                 cbar.ax.tick_params(colors="white")
                 cbar.set_label("Cloud cover (%)", fontsize=10, weight="bold", labelpad=10, color="white")
                 cbar.outline.set_edgecolor('white')
-    
+
                 # Subplot 6: Precipitation
                 axs[6].bar(df["time"], df["precipitation"], width=0.04, color="lightgreen", label="Precip")
                 axs[6].set_ylabel("Precip\n(mm)", color="white")
                 total_precip = df["precipitation"].sum()
                 # CHANGED: Total info card text set to white
                 axs[6].text(0.95, 0.85, f"{DAYS}-Day Total = {total_precip:.2f} mm", transform=axs[6].transAxes, ha="right", weight="bold", color="white")
-    
+
                 axs[-1].xaxis.set_major_locator(mdates.DayLocator())
                 axs[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d\n%b"))
-    
+
                 # --- Global Axis Color Formatting Loop ---
                 for ax in axs:
                     ax.grid(True, which="major", axis="x", color="grey", linestyle="--", alpha=0.4)
@@ -767,16 +757,98 @@ with tab_meteogram:
                     
                     for spine in ax.spines.values():
                         spine.set_edgecolor('white')
-    
+
                 st.pyplot(fig)
                 with st.expander(f"🔍 View Raw Forecast Array ({model_title})"):
                     st.dataframe(df)
-
     for model_key, cfg in models_config.items():
         with cfg["tab"]:
             model_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, cfg["api_id"])
             if model_df is not None:
                 render_meteogram(model_df, cfg["title"])
 
+# ===============================================================================
+# C. TAB LAYOUT: MONSOON DIAGNOSTIC (INTEGRATED HIGH-RES SPATIAL INTERPOLATION)
+# ===============================================================================
 with tab_monsoon:
-    st.write("Monsoon workspace content goes here...")
+    st.subheader("🌧️ India National Monsoon Precipitation Analysis")
+    st.markdown(f"**Target Local Reference:** {location_name}")
+    st.markdown("---")
+    
+    st.markdown("##### 🌐 24-Hour National Spatial Interpolation (ECMWF IFS 9km)")
+    
+    if not os.path.exists(SHAPEFILE_PATH):
+        st.error(f"Shapefile not found at target directory: `{SHAPEFILE_PATH}`. Please check file routing paths.")
+    else:
+        with st.spinner("Processing geospatial alignment matrix... This takes 2-3 seconds."):
+            grid_data_df = fetch_india_grid_forecast()
+            
+            if grid_data_df is not None and not grid_data_df.empty:
+                # Load shape files natively
+                gdf = gpd.read_file(SHAPEFILE_PATH)
+                if gdf.crs is None or gdf.crs.to_epsg() != 4326:
+                    gdf = gdf.to_crs(epsg=4326)
+                    
+                # Create linear space surface grid (300 x 300)
+                x_arr, y_arr, z_arr = grid_data_df['lon'].values, grid_data_df['lat'].values, grid_data_df['precip'].values
+                xi_mesh = np.linspace(x_arr.min(), x_arr.max(), 300)
+                yi_mesh = np.linspace(y_arr.min(), y_arr.max(), 300)
+                xi_mesh, yi_mesh = np.meshgrid(xi_mesh, yi_mesh)
+                
+                # Run cubic grid surface spline
+                zi_mesh = griddata((x_arr, y_arr), z_arr, (xi_mesh, yi_mesh), method='cubic')
+                
+                # Optimized Vector Deduplicated Masking Routine
+                grid_df = pd.DataFrame({'lon': xi_mesh.flatten(), 'lat': yi_mesh.flatten()})
+                grid_gdf = gpd.GeoDataFrame(grid_df, geometry=gpd.points_from_xy(grid_df.lon, grid_df.lat), crs="EPSG:4326")
+                
+                inside_points = gpd.sjoin(grid_gdf, gdf, how='left', predicate='within')
+                inside_points = inside_points.groupby(inside_points.index).first()
+                
+                mask_matrix = inside_points['index_right'].notna().values.reshape(xi_mesh.shape)
+                zi_masked = np.where(mask_matrix, zi_mesh, np.nan)
+                
+                # Generate Map Figure using pure matplotlib (removing Cartopy)
+                fig_map, ax_map = plt.subplots(figsize=(11, 10), facecolor='#ffffff')
+                
+                # Simulate water bodies with background color
+                ax_map.set_facecolor('#edf1f7')
+                
+                # Enforce coordinate extents
+                bounds = gdf.total_bounds
+                ax_map.set_xlim(bounds[0] - 0.5, bounds[2] + 0.5)
+                ax_map.set_ylim(bounds[1] - 0.5, bounds[3] + 0.5)
+                
+                # Draw country outline with land background
+                gdf.plot(ax=ax_map, facecolor='#fdfdfd', edgecolor='#37474f', linewidth=0.8, alpha=0.8, zorder=1)
+                
+                # Render IMD Colors
+                cmap_imd = ListedColormap(IMD_COLORS)
+                norm_imd = BoundaryNorm(IMD_LEVELS, cmap_imd.N)
+                
+                contour_plot = ax_map.contourf(
+                    xi_mesh, yi_mesh, zi_masked, levels=IMD_LEVELS, cmap=cmap_imd, norm=norm_imd,
+                    alpha=0.85, extend='max', zorder=2
+                )
+                
+                # Draw boundaries again on top to keep them crisp
+                gdf.plot(ax=ax_map, facecolor='none', edgecolor='#37474f', linewidth=1.0, zorder=3)
+                
+                # Reference Station Plot Markers
+                for city, coords in MAP_CITIES.items():
+                    if bounds[0] <= coords[0] <= bounds[2] and bounds[1] <= coords[1] <= bounds[3]:
+                        ax_map.plot(coords[0], coords[1], marker='o', color='#212121', markersize=4, zorder=5)
+                        ax_map.text(coords[0] + 0.2, coords[1] + 0.2, city, fontsize=8, weight='bold', zorder=5)
+                        
+                # Native Matplotlib Grid lines
+                ax_map.grid(True, which="both", color='#b0bec5', alpha=0.4, linestyle='--')
+                ax_map.set_xlabel('Longitude (°E)', fontsize=9)
+                ax_map.set_ylabel('Latitude (°N)', fontsize=9)
+                
+                cb = plt.colorbar(contour_plot, orientation='horizontal', pad=0.05, shrink=0.85, aspect=30)
+                cb.set_label('Accumulated Rainfall Over Next 24 Hours (mm)', weight='bold', size=9)
+                cb.ax.tick_params(labelsize=8)
+                
+                st.pyplot(fig_map, clear_figure=True)
+            else:
+                st.error("Meteorological API connection timed out. Could not fetch map data.")
