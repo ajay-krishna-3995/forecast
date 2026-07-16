@@ -203,59 +203,7 @@ if img_base64:
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`. Please check the file path.")
 # -------------------------------------------------------------------------------
-# 2. UNIVERSAL CSS OVERRIDE (Hides top header, github, deploy, footer, and locks out viewer profile badge)
-st.markdown("""
-    <style>
-    /* Completely eliminate the top header bar and its actions */
-    header, .stAppHeader, [data-testid="stHeader"] {
-        display: none !important; 
-        visibility: hidden !important; 
-        height: 0px !important; 
-    }
-    
-    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
-    footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
-        display: none !important; 
-        visibility: hidden !important; 
-    }
-    
-    /* Strict target for the viewer footer container to block interaction */
-    [data-testid="stViewerFooter"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
-    .viewerBadge_container__1QSob, 
-    .styles_viewerBadge__1yB5_, 
-    .viewerBadge_link__1S137, 
-    .viewerBadge_text__1JaDK,
-    [class^="viewerBadge_"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
-    
-    /* Adjust top padding so your title doesn't look cut off */
-    .block-container {
-        padding-top: 2rem !important; 
-    }
-
-    /* Create an iron-clad click barrier along the entire bottom of the app window */
-    .stApp::after {
-        content: "";
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100vw !important;
-        height: 70px !important;
-        z-index: 9999999 !important;
-        background: transparent !important;
-        pointer-events: auto !important;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
+# -------------------------------------------------------------------------------
 # Global 1-minute auto-refresh to keep API queries fresh
 st_autorefresh(interval=60000, key="weather_hub_refresh")
 
