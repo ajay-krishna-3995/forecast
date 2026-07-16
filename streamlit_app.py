@@ -17,6 +17,8 @@ from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import base64
 
+# --- IMPORT HTML FOR THE JAVASCRIPT HACK ---
+from streamlit.components.v1 import html
 # -------------------------------------------------------------------------------
 # 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
 # -------------------------------------------------------------------------------
