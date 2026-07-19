@@ -345,7 +345,7 @@ models_config = {
 # Generate charts inside their respective tabs
 for model_key, config in models_config.items():
     with config["tab"]:
-        st.subheader(f"📈 High-Resolution Meteogram ({config['title']}) — {location_name}")
+        st.subheader(f"📈 Meteogram ({config['title']}) — {location_name}")
         
         with st.spinner(f"Extracting time-series arrays and generating {config['title']} charts..."):
             df_hourly = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, config["api_id"])
