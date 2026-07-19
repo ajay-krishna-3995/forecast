@@ -2,9 +2,9 @@
 # PATH & REFRESH CONFIGURATIONS
 # -------------------------------------------------------------------------------
 paths:
-  background_image: "D:\\ajay\\Background.jpg"
-  india_shapefile: "D:\\ajay\\India-State-and-Country-Shapefile-Updated-Jan-2020-master\\India_State_Boundary.shp"
-  grib_file: "D:\\ajay\\data.grib2"
+  background_image: "Background.jpg"
+  india_shapefile: "India-State-and-Country-Shapefile-Updated-Jan-2020-master"
+  grib_file: "data.grib2"
 refresh_interval_ms: 6000000
 
 # -------------------------------------------------------------------------------
