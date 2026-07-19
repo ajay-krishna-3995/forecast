@@ -12,8 +12,8 @@ python-dotenv
 geopandas
 cartopy
 Shapely
-
-
+mpl_toolkits
+Basemap
 streamlit
 numpy
 pyyaml
