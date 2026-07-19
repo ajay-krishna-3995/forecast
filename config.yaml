@@ -1,0 +1,41 @@
+# -------------------------------------------------------------------------------
+# PATH & REFRESH CONFIGURATIONS
+# -------------------------------------------------------------------------------
+paths:
+  background_image: "D:\\ajay\\Background.jpg"
+  india_shapefile: "D:\\ajay\\India-State-and-Country-Shapefile-Updated-Jan-2020-master\\India_State_Boundary.shp"
+  grib_file: "D:\\ajay\\data.grib2"
+refresh_interval_ms: 6000000
+
+# -------------------------------------------------------------------------------
+# MASTER DATABASE OF PRELOADED COORDINATES
+# -------------------------------------------------------------------------------
+major_cities:
+  "Custom Location": null
+  "Mumbai, India": [19.076, 72.878]
+  "New Delhi, India": [28.614, 77.209]
+  "Kochi, India": [9.9312, 76.2673]
+  "London, UK": [51.507, -0.128]
+  "New York, USA": [40.713, -74.006]
+  "Tokyo, Japan": [35.689, 139.692]
+  "Paris, France": [48.857, 2.352]
+  "Sydney, Australia": [-33.869, 151.209]
+  "São Paulo, Brazil": [-23.551, -46.633]
+  "Cape Town, South Africa": [-33.925, 18.424]
+
+# -------------------------------------------------------------------------------
+# MAP DISPLAY & COLOR SCHEMES
+# -------------------------------------------------------------------------------
+map_cities:
+  Delhi: [77.2090, 28.6139]
+  Mumbai: [72.8777, 19.0760]
+  Bengaluru: [77.5946, 12.9716]
+  Chennai: [80.2707, 13.0827]
+  Kolkata: [88.3639, 22.5726]
+  Hyderabad: [78.4867, 17.3850]
+  Guwahati: [91.7362, 26.1445]
+  Nagpur: [79.0882, 21.1458]
+
+imd_rainfall_scale:
+  levels: [0, 0.1, 2.4, 7.5, 15.5, 35.5, 64.4, 115.5, 204.4, 300]
+  colors: ['#ffffff', '#e3f2fd', '#90caf9', '#4caf50', '#2e7d32', '#fff59d', '#fbc02d', '#ff9800', '#b71c1c']
