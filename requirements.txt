@@ -12,3 +12,10 @@ python-dotenv
 geopandas
 cartopy
 Shapely
+
+
+streamlit
+numpy
+pyyaml
+xarray
+cfgrib
