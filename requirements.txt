@@ -12,7 +12,7 @@ python-dotenv
 geopandas
 cartopy
 Shapely
-mpl_toolkits
+mpl_toolkits-basemap
 Basemap
 streamlit
 numpy
