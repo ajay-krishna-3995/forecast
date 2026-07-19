@@ -93,45 +93,58 @@ light_alpha = round(1.0 - (bg_opacity * 0.95), 2)
 dark_alpha = round(1.0 - (bg_opacity * 0.70), 2)
 
 if img_base64:
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{ background-image: url("{img_base64}"); background-attachment: fixed; background-size: cover; background-position: center; }}
-        @media (prefers-color-scheme: light) {{
-            .stApp {{ background-color: rgba(255, 255, 255, {light_alpha}) !important; background-blend-mode: overlay; }}
-            .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp label, .stApp span, .stApp li {{ color: #111827 !important; }}
-            [data-testid="stSidebar"] {{ background-color: rgba(243, 244, 246, 0.95) !important; }}
-            [data-testid="stSidebar"] * {{ color: #111827 !important; }}
-            div[data-baseweb="select"], div[data-baseweb="input"], .stNumberInput input, .stSelectbox div {{ background-color: #ffffff !important; color: #111827 !important; border: 1px solid #cbd5e1 !important; }}
-            div[data-baseweb="select"] *, .stSelectbox span, .stSelectbox div {{ color: #111827 !important; }}
-            .stNumberInput button {{ background-color: #f1f5f9 !important; color: #111827 !important; border: 1px solid #cbd5e1 !important; }}
-            .stNumberInput button:hover {{ background-color: #e2e8f0 !important; }}
-        }}
-        [data-theme="light"] .stApp {{ background-color: rgba(255, 255, 255, {light_alpha}) !important; background-blend-mode: overlay; }}
-        [data-theme="light"] .stApp, [data-theme="light"] p, [data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3, [data-theme="light"] h4, [data-theme="light"] h5, [data-theme="light"] h6, [data-theme="light"] label, [data-theme="light"] span {{ color: #111827 !important; }}
-        [data-theme="light"] div[data-baseweb="select"], [data-theme="light"] div[data-baseweb="input"], [data-theme="light"] .stNumberInput input, [data-theme="light"] .stSelectbox div {{ background-color: #ffffff !important; color: #111827 !important; border: 1px solid #cbd5e1 !important; }}
-        [data-theme="light"] div[data-baseweb="select"] *, [data-theme="light"] .stSelectbox span, [data-theme="light"] .stSelectbox div {{ color: #111827 !important; }}
-        [data-theme="light"] .stNumberInput button {{ background-color: #f1f5f9 !important; color: #111827 !important; border: 1px solid #cbd5e1 !important; }}
+    st.markdown("""
+    <style>
+    /* Completely eliminate the top header bar and its actions */
+    header, .stAppHeader, [data-testid="stHeader"] {
+        display: none !important; 
+        visibility: hidden !important; 
+        height: 0px !important; 
+    }
+    
+    /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
+    footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {
+        display: none !important; 
+        visibility: hidden !important; 
+    }
+    
+    /* Strict target for the viewer footer container to block interaction */
+    [data-testid="stViewerFooter"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
 
-        @media (prefers-color-scheme: dark) {{
-            .stApp {{ background-color: rgba(15, 23, 42, {dark_alpha}) !important; background-blend-mode: overlay; }}
-            .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp label, .stApp span, .stApp li {{ color: #f3f4f6 !important; }}
-            [data-testid="stSidebar"] {{ background-color: rgba(17, 24, 39, 0.95) !important; }}
-            [data-testid="stSidebar"] * {{ color: #f3f4f6 !important; }}
-            div[data-baseweb="select"], div[data-baseweb="input"], .stNumberInput input, .stSelectbox div {{ background-color: #1e293b !important; color: #ffffff !important; border: 1px solid #475569 !important; }}
-            div[data-baseweb="select"] *, .stSelectbox span, .stSelectbox div {{ color: #ffffff !important; }}
-            .stNumberInput button {{ background-color: #334155 !important; color: #ffffff !important; border: 1px solid #475569 !important; }}
-            .stNumberInput button:hover {{ background-color: #475569 !important; }}
-        }}
-        [data-theme="dark"] .stApp {{ background-color: rgba(15, 23, 42, {dark_alpha}) !important; background-blend-mode: overlay; }}
-        [data-theme="dark"] .stApp, [data-theme="dark"] p, [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6, [data-theme="dark"] label, [data-theme="dark"] span {{ color: #f3f4f6 !important; }}
-        [data-theme="dark"] div[data-baseweb="select"], [data-theme="dark"] div[data-baseweb="input"], [data-theme="dark"] .stNumberInput input, [data-theme="dark"] .stSelectbox div {{ background-color: #1e293b !important; color: #ffffff !important; border: 1px solid #475569 !important; }}
-        [data-theme="dark"] div[data-baseweb="select"] *, [data-theme="dark"] .stSelectbox span, [data-theme="dark"] .stSelectbox div {{ color: #ffffff !important; }}
-        [data-theme="dark"] .stNumberInput button {{ background-color: #334155 !important; color: #ffffff !important; border: 1px solid #475569 !important; }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    /* Target the Streamlit Cloud "Viewer Badge" containing your profile name and link */
+    .viewerBadge_container__1QSob, 
+    .styles_viewerBadge__1yB5_, 
+    .viewerBadge_link__1S137, 
+    .viewerBadge_text__1JaDK,
+    [class^="viewerBadge_"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Adjust top padding so your title doesn't look cut off */
+    .block-container {
+        padding-top: 2rem !important; 
+    }
+
+    /* Create an iron-clad click barrier along the entire bottom of the app window */
+    .stApp::after {
+        content: "";
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        height: 70px !important;
+        z-index: 9999999 !important;
+        background: transparent !important;
+        pointer-events: auto !important;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`.")
 
