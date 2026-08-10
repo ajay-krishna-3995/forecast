@@ -87,15 +87,17 @@ html('''
     setInterval(hideViewerBadge, 500);
 </script>
 ''', height=0, width=0)
-# Define the path to your local image (change 'monsoon_bg.jpg' to your filename)
-def get_base64_image(image_path):
+@st.cache_data
+def get_base64_image(image_path, mtime):
     try:
         with open(image_path, "rb") as image_file:
             return f"data:image/jpeg;base64,{base64.b64encode(image_file.read()).decode()}"
     except FileNotFoundError:
         return None
 
-img_base64 = get_base64_image(LOCAL_IMAGE_PATH)
+# Call it with os.path.getmtime:
+img_mtime = os.path.getmtime(LOCAL_IMAGE_PATH) if os.path.exists(LOCAL_IMAGE_PATH) else 0
+img_base64 = get_base64_image(LOCAL_IMAGE_PATH, img_mtime)
 
 st.sidebar.markdown("### 🎨 Theme Customizer")
 bg_opacity = st.sidebar.slider(
