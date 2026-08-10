@@ -362,10 +362,10 @@ DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10
 # DATA PROCESSING PIPELINES (API FETCHERS)
 # -------------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
-def get_location_name(lat, lon):
+def get_location_name(lat, lon, current_city_label):
     try:
-        if st.session_state.city_select != "Custom Location":
-            return st.session_state.city_select
+        if current_city_label != "Custom Location":
+            return current_city_label
         geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&zoom=10"
         res = requests.get(geo_url, headers={'User-Agent': 'WeatherHubApp/2.0'}, timeout=3).json()
         if "display_name" in res:
