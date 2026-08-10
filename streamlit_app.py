@@ -10,7 +10,6 @@ import geopandas as gpd
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.colors import ListedColormap, BoundaryNorm
 from datetime import datetime as dt, timedelta
 from scipy.ndimage import gaussian_filter
 from mpl_toolkits.basemap import Basemap
@@ -18,12 +17,10 @@ import streamlit.components.v1 as components
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
-# --- IMPORT HTML FOR THE JAVASCRIPT HACK ---
-from streamlit.components.v1 import html
+
 # -------------------------------------------------------------------------------
-# 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
+# ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
 # -------------------------------------------------------------------------------
-# LOAD CONFIGURATION FROM YAML
 from ecmwf.opendata import Client
 
 try:
