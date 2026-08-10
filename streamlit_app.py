@@ -119,11 +119,10 @@ if img_base64:
             background-position: center;
         }}
 
-        /* Completely eliminate the top header bar and its actions */
-        header, .stAppHeader, [data-testid="stHeader"] {{
-            display: none !important; 
-            visibility: hidden !important; 
-            height: 0px !important; 
+        /* Hide default Streamlit multi-page navigation link list */
+        [data-testid="stSidebarNav"] {
+            display: none !important;
+            visibility: hidden !important;
         }}
         
         /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
