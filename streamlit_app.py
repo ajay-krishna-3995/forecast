@@ -154,7 +154,7 @@ else:
 # -------------------------------------------------------------------------------
 st_autorefresh(interval=REFRESH_MS, key="weather_hub_refresh")
 
-st.title("⛈️ Weather, Air Quality & GRIB Analysis")
+st.title("⛈️ Weather, AQI & Rainfall Forecasting")
 st.markdown("Plan Better with Smarter Weather ☔")
 
 if "lat" not in st.session_state: st.session_state.lat = 19.076
@@ -414,7 +414,7 @@ with tab_meteogram:
 
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("ECMWF GRIB Rainfall Forecast Map")
+    st.subheader("ECMWF Rainfall Forecast")
     
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
