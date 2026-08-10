@@ -118,6 +118,12 @@ if img_base64:
             background-size: cover;
             background-position: center;
         }}
+        /* Completely eliminate the top header bar and its actions */
+                header, .stAppHeader, [data-testid="stHeader"] {{
+                    display: none !important; 
+                    visibility: hidden !important; 
+                    height: 0px !important; 
+                }}
 
         /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
         footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {{
