@@ -119,12 +119,6 @@ if img_base64:
             background-position: center;
         }}
 
-        /* Hide default Streamlit multi-page navigation link list */
-        [data-testid="stSidebarNav"] {{
-            display: none !important;
-            visibility: hidden !important;
-        }}
-        
         /* Completely eliminate the footer, "Made with Streamlit" brand, and any profile links */
         footer, .stAppDeployButton, [data-testid="stStatusWidget"], [data-testid="stDecoration"], .stStatusWidget, #connection-status {{
             display: none !important; 
