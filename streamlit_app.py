@@ -118,6 +118,11 @@ if img_base64:
             background-size: cover;
             background-position: center;
         }}
+        /* Hide default Streamlit multi-page navigation link list */
+                [data-testid="stSidebarNav"] {{
+                    display: none !important;
+                    visibility: hidden !important;
+                }}
         /* Completely eliminate the top header bar and its actions */
                 header, .stAppHeader, [data-testid="stHeader"] {{
                     display: none !important; 
