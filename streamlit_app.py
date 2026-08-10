@@ -358,6 +358,7 @@ if map_data and map_data.get("last_clicked"):
         st.rerun()
 
 DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
+
 # -------------------------------------------------------------------------------
 # DATA PROCESSING PIPELINES (API FETCHERS)
 # -------------------------------------------------------------------------------
@@ -451,8 +452,7 @@ def process_grib_data_pure(file_path, selected_step_hours):
         "v_time": valid_time_str
     }
 
-location_name = get_location_name(st.session_state.lat, st.session_state.lon)
-
+location_name = get_location_name(st.session_state.lat, st.session_state.lon, selected_city)
 # -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
