@@ -24,6 +24,24 @@ from streamlit.components.v1 import html
 # 1. STREAMLIT PAGE SETUP & AUTO-ADAPTIVE DUAL THEME (CORRECTED WIDGETS)
 # -------------------------------------------------------------------------------
 # LOAD CONFIGURATION FROM YAML
+from ecmwf.opendata import Client
+
+try:
+    client = Client(source="ecmwf")
+    result = client.retrieve(
+        time=12,
+        type="fc",
+        param="tp",
+        step=[24, 48, 72],
+        target="data.grib2",
+    )
+    print(f"ECMWF Download Success - Valid Run Base Time: {result.datetime}")
+except Exception as e:
+    print(f"ECMWF OpenData Client Error: {e}")
+
+# -------------------------------------------------------------------------------
+# LOAD CONFIGURATION FROM YAML
+# -------------------------------------------------------------------------------
 @st.cache_data
 def load_config():
     with open("config.yaml", "r") as file:
@@ -33,7 +51,7 @@ CONFIG = load_config()
 
 LOCAL_IMAGE_PATH = CONFIG["paths"]["background_image"]
 SHAPEFILE_PATH = CONFIG["paths"]["india_shapefile"]
-GRIB_FILE_PATH = CONFIG["paths"]["grib_file"]
+GRIB_FILE_PATH = "data.grib2"
 MAJOR_CITIES = CONFIG["major_cities"]
 REFRESH_MS = CONFIG["refresh_interval_ms"]
 
