@@ -287,60 +287,77 @@ else:
     #------------------------------------------------------------------------
 # STATE MANAGER & ACTIONS
 # -------------------------------------------------------------------------------
-st_autorefresh(interval=REFRESH_MS, key="weather_hub_refresh")
-
 st.title("⛈️ Weather, AQI & Rainfall Forecasting")
 st.markdown("Plan Better with Smarter Weather ☔")
 
+# Initialize coordinates
 if "lat" not in st.session_state: st.session_state.lat = 19.076
 if "lon" not in st.session_state: st.session_state.lon = 72.878
-if "city_select" not in st.session_state: st.session_state.city_select = "Kochi, India"
 
-def on_city_change():
-    chosen = st.session_state.city_select
-    if chosen != "Custom Location":
-        st.session_state.lat, st.session_state.lon = MAJOR_CITIES[chosen]
-
-def sync_city_dropdown():
-    st.session_state.city_select = "Custom Location"
+def find_matched_city(lat, lon):
     for city, coords in MAJOR_CITIES.items():
-        if coords and round(coords[0], 3) == round(st.session_state.lat, 3) and round(coords[1], 3) == round(st.session_state.lon, 3):
-            st.session_state.city_select = city
-            break
+        if coords and round(coords[0], 3) == round(lat, 3) and round(coords[1], 3) == round(lon, 3):
+            return city
+    return "Custom Location"
 
 # -------------------------------------------------------------------------------
-# SIDEBAR NAVIGATION
+# SIDEBAR NAVIGATION & SAFE STATE SYNCHRONIZATION
 # -------------------------------------------------------------------------------
 st.sidebar.header("📍 Location Navigator")
-st.sidebar.selectbox("🌆 Quick Select Station", options=list(MAJOR_CITIES.keys()), key="city_select", on_change=on_city_change)
 
+cities_keys = list(MAJOR_CITIES.keys())
+
+# Pre-determine current city label based on active lat/lon
+matched_city = find_matched_city(st.session_state.lat, st.session_state.lon)
+default_idx = cities_keys.index(matched_city) if matched_city in cities_keys else cities_keys.index("Custom Location")
+
+# Render selectboxWITHOUT key="city_select" to avoid state locking
+selected_city = st.sidebar.selectbox("🌆 Quick Select Station", options=cities_keys, index=default_idx)
+
+# If dropdown choice changes manually, update target coordinates
+if selected_city != matched_city and selected_city != "Custom Location":
+    coords = MAJOR_CITIES[selected_city]
+    if coords:
+        st.session_state.lat, st.session_state.lon = coords
+        st.rerun()
+
+# Coordinate manual input fields
 col1, col2 = st.sidebar.columns(2)
-with col1: lat_input = st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", value=st.session_state.lat)
-with col2: lon_input = st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", value=st.session_state.lon)
+with col1: 
+    lat_input = st.number_input("Lat (°N)", min_value=-90.0, max_value=90.0, step=0.001, format="%.3f", value=st.session_state.lat)
+with col2: 
+    lon_input = st.number_input("Lon (°E)", min_value=-180.0, max_value=180.0, step=0.001, format="%.3f", value=st.session_state.lon)
 
 if lat_input != st.session_state.lat or lon_input != st.session_state.lon:
     st.session_state.lat, st.session_state.lon = lat_input, lon_input
-    sync_city_dropdown()
     st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("##### 🗺️ Map Target Picker")
 
-m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=5)
-folium.Marker([st.session_state.lat, st.session_state.lon], popup="Monitored Station", tooltip="Active Target Node").add_to(m)
+# Folium Map Target Picker
+m = folium.Map(
+    location=[st.session_state.lat, st.session_state.lon], 
+    zoom_start=7,
+    tiles="OpenStreetMap"
+)
+folium.Marker(
+    [st.session_state.lat, st.session_state.lon], 
+    popup=f"Target: {selected_city}", 
+    tooltip="Active Station Target"
+).add_to(m)
 
 map_data = st_folium(m, height=220, width=None, key="sidebar_map_selector", returned_objects=["last_clicked"])
 
+# Process map clicks safely without session state key locks
 if map_data and map_data.get("last_clicked"):
     clicked_lat = round(map_data["last_clicked"]["lat"], 3)
     clicked_lon = round(map_data["last_clicked"]["lng"], 3)
     if clicked_lat != st.session_state.lat or clicked_lon != st.session_state.lon:
         st.session_state.lat, st.session_state.lon = clicked_lat, clicked_lon
-        sync_city_dropdown()
         st.rerun()
 
 DAYS = st.sidebar.slider("Forecast Lookahead Horizon", min_value=1, max_value=10, value=7)
-
 # -------------------------------------------------------------------------------
 # DATA PROCESSING PIPELINES (API FETCHERS)
 # -------------------------------------------------------------------------------
