@@ -18,6 +18,46 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 from streamlit.components.v1 import html
+
+# 1. Page Config (MUST BE FIRST STREAMLIT COMMAND)
+st.set_page_config(
+    page_title="Weather, Air Quality & Monsoon",
+    page_icon="⛈️",
+    layout="wide"
+)
+
+# 2. Hide Header & Viewer Badges Immediately
+html('''
+<script>
+function hideViewerBadge() {
+    const parentDoc = window.top.document;
+    parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
+        el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
+    });
+    parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
+        el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
+    });
+}
+hideViewerBadge();
+setInterval(hideViewerBadge, 500);
+</script>
+''', height=0, width=0)
+
+st.markdown("""
+<style>
+/* Completely eliminate top header bar and actions */
+header, .stAppHeader, [data-testid="stHeader"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0px !important;
+}
+
+/* Adjust top padding so content doesn't get cut off */
+.block-container {
+    padding-top: 1rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 # -------------------------------------------------------------------------------
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
 # -------------------------------------------------------------------------------
@@ -52,41 +92,7 @@ GRIB_FILE_PATH = "data.grib2"
 MAJOR_CITIES = CONFIG["major_cities"]
 REFRESH_MS = CONFIG["refresh_interval_ms"]
 
-st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon",
-    page_icon="⛈️",
-    layout="wide"
-)
-html('''
-<script>
-    function hideViewerBadge() {
-        // Target the parent document structure containing the sharing container
-        const parentDoc = window.top.document;
-        
-        // Target the hosting redirect links
-        parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.width = '0px';
-            el.style.height = '0px';
-        });
-        
-        // Target the profile avatar wrappers and custom container classes
-        parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.width = '0px';
-            el.style.height = '0px';
-        });
-    }
 
-    // Fire immediately upon initialization
-    hideViewerBadge();
-    
-    // Periodically run a DOM sweep to prevent the badge from reappearing
-    setInterval(hideViewerBadge, 500);
-</script>
-''', height=0, width=0)
 @st.cache_data
 def get_base64_image(image_path, mtime):
     try:
