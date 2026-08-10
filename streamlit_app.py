@@ -120,7 +120,7 @@ if img_base64:
         }}
 
         /* Hide default Streamlit multi-page navigation link list */
-        [data-testid="stSidebarNav"] {
+        [data-testid="stSidebarNav"] {{
             display: none !important;
             visibility: hidden !important;
         }}
