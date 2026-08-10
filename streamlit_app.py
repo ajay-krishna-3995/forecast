@@ -22,6 +22,41 @@ from streamlit.components.v1 import html
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
 # -------------------------------------------------------------------------------
 from ecmwf.opendata import Client
+
+try:
+    client = Client(source="ecmwf")
+    result = client.retrieve(
+        time=12,
+        type="fc",
+        param="tp",
+        step=[24, 48, 72],
+        target="data.grib2",
+    )
+    print(f"ECMWF Download Success - Valid Run Base Time: {result.datetime}")
+except Exception as e:
+    print(f"ECMWF OpenData Client Error: {e}")
+
+# -------------------------------------------------------------------------------
+# LOAD CONFIGURATION FROM YAML
+# -------------------------------------------------------------------------------
+@st.cache_data
+def load_config():
+    with open("config.yaml", "r") as file:
+        return yaml.safe_load(file)
+
+CONFIG = load_config()
+
+LOCAL_IMAGE_PATH = CONFIG["paths"]["background_image"]
+SHAPEFILE_PATH = CONFIG["paths"]["india_shapefile"]
+GRIB_FILE_PATH = "data.grib2"
+MAJOR_CITIES = CONFIG["major_cities"]
+REFRESH_MS = CONFIG["refresh_interval_ms"]
+
+st.set_page_config(
+    page_title="Weather, Air Quality & Monsoon",
+    page_icon="⛈️",
+    layout="wide"
+)
 html('''
 <script>
     function hideViewerBadge() {
@@ -52,6 +87,28 @@ html('''
     setInterval(hideViewerBadge, 500);
 </script>
 ''', height=0, width=0)
+@st.cache_data
+def get_base64_image(image_path, mtime):
+    try:
+        with open(image_path, "rb") as image_file:
+            return f"data:image/jpeg;base64,{base64.b64encode(image_file.read()).decode()}"
+    except FileNotFoundError:
+        return None
+
+# Call it with os.path.getmtime:
+img_mtime = os.path.getmtime(LOCAL_IMAGE_PATH) if os.path.exists(LOCAL_IMAGE_PATH) else 0
+img_base64 = get_base64_image(LOCAL_IMAGE_PATH, img_mtime)
+
+st.sidebar.markdown("### 🎨 Theme Customizer")
+bg_opacity = st.sidebar.slider(
+    "Background Image Opacity", 
+    min_value=0.0, max_value=1.0, value=0.30, step=0.05,
+    help="Adjust image visibility. Keep low (0.15 - 0.35) for maximum data readability."
+)
+
+light_alpha = round(1.0 - (bg_opacity * 0.95), 2)
+dark_alpha = round(1.0 - (bg_opacity * 0.70), 2)
+
 if img_base64:
     st.markdown(
         f"""
@@ -229,63 +286,6 @@ if img_base64:
     )
 else:
     st.sidebar.warning(f"⚠️ Local background image not found at `{LOCAL_IMAGE_PATH}`.")
-try:
-    client = Client(source="ecmwf")
-    result = client.retrieve(
-        time=12,
-        type="fc",
-        param="tp",
-        step=[24, 48, 72],
-        target="data.grib2",
-    )
-    print(f"ECMWF Download Success - Valid Run Base Time: {result.datetime}")
-except Exception as e:
-    print(f"ECMWF OpenData Client Error: {e}")
-
-# -------------------------------------------------------------------------------
-# LOAD CONFIGURATION FROM YAML
-# -------------------------------------------------------------------------------
-@st.cache_data
-def load_config():
-    with open("config.yaml", "r") as file:
-        return yaml.safe_load(file)
-
-CONFIG = load_config()
-
-LOCAL_IMAGE_PATH = CONFIG["paths"]["background_image"]
-SHAPEFILE_PATH = CONFIG["paths"]["india_shapefile"]
-GRIB_FILE_PATH = "data.grib2"
-MAJOR_CITIES = CONFIG["major_cities"]
-REFRESH_MS = CONFIG["refresh_interval_ms"]
-
-st.set_page_config(
-    page_title="Weather, Air Quality & Monsoon",
-    page_icon="⛈️",
-    layout="wide"
-)
-@st.cache_data
-def get_base64_image(image_path, mtime):
-    try:
-        with open(image_path, "rb") as image_file:
-            return f"data:image/jpeg;base64,{base64.b64encode(image_file.read()).decode()}"
-    except FileNotFoundError:
-        return None
-
-# Call it with os.path.getmtime:
-img_mtime = os.path.getmtime(LOCAL_IMAGE_PATH) if os.path.exists(LOCAL_IMAGE_PATH) else 0
-img_base64 = get_base64_image(LOCAL_IMAGE_PATH, img_mtime)
-
-st.sidebar.markdown("### 🎨 Theme Customizer")
-bg_opacity = st.sidebar.slider(
-    "Background Image Opacity", 
-    min_value=0.0, max_value=1.0, value=0.30, step=0.05,
-    help="Adjust image visibility. Keep low (0.15 - 0.35) for maximum data readability."
-)
-
-light_alpha = round(1.0 - (bg_opacity * 0.95), 2)
-dark_alpha = round(1.0 - (bg_opacity * 0.70), 2)
-
-
     #------------------------------------------------------------------------
 # STATE MANAGER & ACTIONS
 # -------------------------------------------------------------------------------
