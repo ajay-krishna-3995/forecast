@@ -14,7 +14,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 from datetime import datetime as dt, timedelta
 from scipy.ndimage import gaussian_filter
 from mpl_toolkits.basemap import Basemap
-
+import streamlit.components.v1 as components
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
@@ -235,6 +235,17 @@ def fetch_air_quality(lat, lon):
     try: return requests.get(url, params=params).json().get("current", None)
     except Exception: return None
 
+@st.cache_data(show_spinner="Fetching Light Forecast Alerts...")
+def fetch_alert_data(lat, lon):
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {"latitude": lat, "longitude": lon, "hourly": ["precipitation"], "forecast_days": 1, "timezone": "auto"}
+    try:
+        response = requests.get(url, params=params).json()
+        df = pd.DataFrame(response["hourly"])
+        df["time"] = pd.to_datetime(df["time"])
+        return df
+    except Exception: return None
+
 @st.cache_data(show_spinner="Compiling Multi-Model Core Vectors...")
 def fetch_weather_data(lat, lon, days, model_id):
     base_url = "https://api.open-meteo.com/v1/forecast"
@@ -250,8 +261,9 @@ def fetch_weather_data(lat, lon, days, model_id):
     except Exception: return None
 
 @st.cache_data(show_spinner="Parsing Primary GRIB2 Data Matrix...")
-def process_grib_data_pure(file_path):
-    with xr.open_dataset(file_path, engine="cfgrib") as ds:
+def process_grib_data_pure(file_path, selected_step_hours):
+    backend_kwargs = {"filter_by_keys": {"step": selected_step_hours}}
+    with xr.open_dataset(file_path, engine="cfgrib", backend_kwargs=backend_kwargs) as ds:
         var_name = str(list(ds.data_vars)[0])
         
         def clean_date(t):
@@ -265,7 +277,6 @@ def process_grib_data_pure(file_path):
         valid_time_str = clean_date(ds.valid_time.values)
         
         region = ds.sel(latitude=slice(38, 5), longitude=slice(65, 98))
-        
         raw_values = np.array(region[var_name].values, dtype=np.float64)
         lats = np.array(region.latitude.values, dtype=np.float64)
         lons = np.array(region.longitude.values, dtype=np.float64)
@@ -292,15 +303,16 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon)
 # -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
-tab_home, tab_meteogram, tab_grib_analysis = st.tabs(["🏡 Home", "📈 Meteogram", "Rainfall"])
+tab_home, tab_meteogram, tab_grib_analysis, tab_research = st.tabs(["🏡 Home", "📈 Meteogram", "Rainfall", "Research"])
 
 # --- 1. HOME TAB ---
 with tab_home:
     st.subheader(f"📍 {location_name}")
     st.write(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
     
-    live_weather, live_aqi = fetch_live_metrics(st.session_state.lat, st.session_state.lon), fetch_air_quality(st.session_state.lat, st.session_state.lon)
-    forecast_alert_df = fetch_weather_data(st.session_state.lat, st.session_state.lon, 1, "ecmwf_ifs025")
+    live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
+    live_aqi = fetch_air_quality(st.session_state.lat, st.session_state.lon)
+    forecast_alert_df = fetch_alert_data(st.session_state.lat, st.session_state.lon)
 
     if live_weather and live_aqi:
         c1, c2, c3, c4 = st.columns(4)
@@ -331,92 +343,91 @@ with tab_home:
                 "Density": [f"{live_aqi['pm2_5']} µg/m³", f"{live_aqi['pm10']} µg/m³", f"{live_aqi['nitrogen_dioxide']} µg/m³", f"{live_aqi['ozone']} µg/m³", f"{live_aqi['sulphur_dioxide']} µg/m³"]
             }))
 
-# --- 2. METEOGRAM TAB (UPDATED & WORKING) ---
+# --- 2. METEOGRAM TAB ---
 with tab_meteogram:
     st.subheader(f"📈 High-Resolution Meteogram — {location_name}")
     
-tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (0.25°)", "US GFS Seamless"])
+    tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (0.25°)", "US GFS Seamless"])
 
-models_config = {
-    "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS", "tab": tab_ecmwf},
-    "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
-}
+    models_config = {
+        "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS", "tab": tab_ecmwf},
+        "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
+    }
 
-# Generate charts inside their respective tabs
-for model_key, config in models_config.items():
-    with config["tab"]:
-        st.subheader(f"📈 Meteogram ({config['title']}) — {location_name}")
-        
-        with st.spinner(f"Extracting time-series arrays and generating {config['title']} charts..."):
-            df_hourly = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, config["api_id"])
-            
-            if df_hourly is not None and not df_hourly.empty:
-                try:
-                    fig_meteo, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
-                    
-                    # Enforce total dark-app theme transparency
-                    fig_meteo.patch.set_alpha(0)
-                    for ax in [ax1, ax2, ax3]:
-                        ax.patch.set_alpha(0)
-                        ax.set_facecolor('none')
-                        ax.tick_params(colors='white', which='both', labelsize=10)
-                        ax.xaxis.label.set_color('white')
-                        ax.yaxis.label.set_color('white')
-                        ax.grid(True, color='white', alpha=0.1, linestyle='--')
-                        for spine in ax.spines.values():
-                            spine.set_edgecolor('white')
-                            spine.set_alpha(0.3)
+    for model_key, config in models_config.items():
+        with config["tab"]:
+            with st.spinner(f"Extracting time-series arrays and generating {config['title']} charts..."):
+                df_hourly = fetch_weather_data(st.session_state.lat, st.session_state.lon, DAYS, config["api_id"])
+                
+                if df_hourly is not None and not df_hourly.empty:
+                    try:
+                        fig_meteo, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+                        
+                        fig_meteo.patch.set_alpha(0)
+                        for ax in [ax1, ax2, ax3]:
+                            ax.patch.set_alpha(0)
+                            ax.set_facecolor('none')
+                            ax.tick_params(colors='white', which='both', labelsize=10)
+                            ax.xaxis.label.set_color('white')
+                            ax.yaxis.label.set_color('white')
+                            ax.grid(True, color='white', alpha=0.1, linestyle='--')
+                            for spine in ax.spines.values():
+                                spine.set_edgecolor('white')
+                                spine.set_alpha(0.3)
 
-                    # Chart 1: Temperature & Dew Point
-                    ax1.plot(df_hourly["time"], df_hourly["temperature_2m"], color="#f97316", linewidth=2.0, label="Air Temp (°C)")
-                    ax1.plot(df_hourly["time"], df_hourly["dew_point_2m"], color="#38bdf8", linewidth=1.5, linestyle=":", label="Dew Point (°C)")
-                    ax1.set_ylabel("Temperature (°C)", weight='bold')
-                    ax1.legend(loc="upper right", framealpha=0.1, labelcolor="white")
-                    
-                    ax1_rh = ax1.twinx()
-                    ax1_rh.patch.set_alpha(0)
-                    ax1_rh.plot(df_hourly["time"], df_hourly["relative_humidity_2m"], color="#10b981", linewidth=1.0, alpha=0.4, label="RH (%)")
-                    ax1_rh.set_ylabel("Humidity (%)", color="#10b981", alpha=0.7)
-                    ax1_rh.tick_params(colors='#10b981', which='both', labelcolor='#10b981')
-                    ax1_rh.spines['right'].set_edgecolor('#10b981')
-                    ax1_rh.spines['right'].set_alpha(0.4)
+                        ax1.plot(df_hourly["time"], df_hourly["temperature_2m"], color="#f97316", linewidth=2.0, label="Air Temp (°C)")
+                        ax1.plot(df_hourly["time"], df_hourly["dew_point_2m"], color="#38bdf8", linewidth=1.5, linestyle=":", label="Dew Point (°C)")
+                        ax1.set_ylabel("Temperature (°C)", weight='bold')
+                        ax1.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+                        
+                        ax1_rh = ax1.twinx()
+                        ax1_rh.patch.set_alpha(0)
+                        ax1_rh.plot(df_hourly["time"], df_hourly["relative_humidity_2m"], color="#10b981", linewidth=1.0, alpha=0.4, label="RH (%)")
+                        ax1_rh.set_ylabel("Humidity (%)", color="#10b981", alpha=0.7)
+                        ax1_rh.tick_params(colors='#10b981', which='both', labelcolor='#10b981')
+                        ax1_rh.spines['right'].set_edgecolor('#10b981')
+                        ax1_rh.spines['right'].set_alpha(0.4)
 
-                    # Chart 2: Precipitation
-                    ax2.bar(df_hourly["time"], df_hourly["precipitation"], color="#2563eb", width=0.03, label="Hourly Rain (mm)")
-                    ax2.set_ylabel("Precipitation (mm)", weight='bold')
-                    ax2.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+                        ax2.bar(df_hourly["time"], df_hourly["precipitation"], color="#2563eb", width=0.03, label="Hourly Rain (mm)")
+                        ax2.set_ylabel("Precipitation (mm)", weight='bold')
+                        ax2.legend(loc="upper right", framealpha=0.1, labelcolor="white")
 
-                    # Chart 3: Wind Vectors (Converted from km/h to m/s)
-                    wind_ms = df_hourly["wind_speed_10m"] / 3.6
-                    gust_ms = df_hourly["wind_gusts_10m"] / 3.6
-                    
-                    ax3.plot(df_hourly["time"], wind_ms, color="#eab308", linewidth=1.8, label="Wind Speed (m/s)")
-                    ax3.fill_between(df_hourly["time"], wind_ms, gust_ms, color="#eab308", alpha=0.15, label="Wind Gust Range")
-                    ax3.set_ylabel("Wind Velocity (m/s)", weight='bold')
-                    ax3.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+                        wind_ms = df_hourly["wind_speed_10m"] / 3.6
+                        gust_ms = df_hourly["wind_gusts_10m"] / 3.6
+                        
+                        ax3.plot(df_hourly["time"], wind_ms, color="#eab308", linewidth=1.8, label="Wind Speed (m/s)")
+                        ax3.fill_between(df_hourly["time"], wind_ms, gust_ms, color="#eab308", alpha=0.15, label="Wind Gust Range")
+                        ax3.set_ylabel("Wind Velocity (m/s)", weight='bold')
+                        ax3.legend(loc="upper right", framealpha=0.1, labelcolor="white")
 
-                    ax3.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
-                    ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_meteo, clear_figure=True)
-                    
-                except Exception as plot_err:
-                    st.error(f"Failed to assemble the {config['title']} time-series charts: {str(plot_err)}")
-            else:
-                st.error(f"Unable to compile {config['title']} model timeline matrices from forecast APIs.")
+                        ax3.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
+                        ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig_meteo, clear_figure=True)
+                        
+                    except Exception as plot_err:
+                        st.error(f"Failed to assemble the {config['title']} time-series charts: {str(plot_err)}")
+                else:
+                    st.error(f"Unable to compile {config['title']} model timeline matrices from forecast APIs.")
+
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("Rainfall Forecast")
+    st.subheader("ECMWF GRIB Rainfall Forecast Map")
+    
+    grib_target_day = min(DAYS, 3) 
+    target_step_hours = grib_target_day * 24
+    
+    st.info(f"📅 **Active Horizon:** Rendering **Day {grib_target_day} ({target_step_hours} Hour Forecast)** linked directly to your sidebar Lookahead Horizon slider.")
     
     if not os.path.exists(GRIB_FILE_PATH):
         st.error(f"GRIB dataset targets missing at destination: `{GRIB_FILE_PATH}`")
     elif not os.path.exists(SHAPEFILE_PATH):
         st.error(f"State boundary metrics missing at destination: `{SHAPEFILE_PATH}`")
     else:
-        with st.spinner("Extracting parameters and plotting grid coordinates via Basemap..."):
+        with st.spinner(f"Extracting parameters for step {target_step_hours}h and plotting via Basemap..."):
             try:
-                grib_payload = process_grib_data_pure(GRIB_FILE_PATH)
+                grib_payload = process_grib_data_pure(GRIB_FILE_PATH, target_step_hours)
                 
                 lon2d = grib_payload["lon2d"]
                 lat2d = grib_payload["lat2d"]
@@ -431,7 +442,6 @@ with tab_grib_analysis:
                 
                 fig_grib, ax = plt.subplots(figsize=(12, 10))
 
-                # Transparent background layout matching
                 fig_grib.patch.set_alpha(0)
                 ax.patch.set_alpha(0)
                 ax.set_facecolor('none')
@@ -479,7 +489,7 @@ with tab_grib_analysis:
                 cbar.outline.set_linewidth(1.0)
                 
                 plt.title(
-                    f"ECMWF Total Precipitation\nForecast Run: {f_time}  |  Valid Time: {v_time}",
+                    f"ECMWF Total Precipitation ({target_step_hours}h Forecast Horizon)\nForecast Run: {f_time}  |  Valid Time: {v_time}",
                     fontsize=13, weight="bold", color="white", pad=15
                 )
                 plt.tight_layout()
@@ -488,3 +498,126 @@ with tab_grib_analysis:
                 
             except Exception as e:
                 st.error(f"Failed to process target files. Error trace: {str(e)}")
+
+# --- 4. RESEARCH TAB ---
+with tab_research:
+    st.subheader("🔬 Research & Development Insights")
+    st.markdown("""
+    This section is dedicated to showcasing advanced meteorological research, experimental models, and data visualizations.
+    """)
+    
+    st.markdown("---")
+    
+    # Read target PDF path dynamically from YAML configuration
+    DEFAULT_PDF_PATH = CONFIG.get("paths", {}).get("research_pdf", "")
+    
+    research_pdf_tab, research_img_tab = st.tabs(["📄 PDF Document Viewer", "Image Visualizer"])
+    
+    # ---------------------------------------------------------------------------
+    # PDF VIEWER SUB-TAB (Auto-loads path from config.yaml)
+    # ---------------------------------------------------------------------------
+    with research_pdf_tab:
+        uploaded_pdf = st.file_uploader(
+            "Upload your findings or research paper (PDF format)", 
+            type=["pdf"], 
+            key="pdf_research_uploader"
+        )
+        
+        pdf_bytes = None
+        pdf_title = "Default Research Document"
+
+        # Check if user uploaded a file, otherwise fall back to config.yaml path
+        if uploaded_pdf is not None:
+            pdf_bytes = uploaded_pdf.read()
+            pdf_title = uploaded_pdf.name
+        elif DEFAULT_PDF_PATH and os.path.exists(DEFAULT_PDF_PATH):
+            try:
+                with open(DEFAULT_PDF_PATH, "rb") as f:
+                    pdf_bytes = f.read()
+                pdf_title = os.path.basename(DEFAULT_PDF_PATH)
+            except Exception as file_err:
+                st.error(f"Error reading PDF at `{DEFAULT_PDF_PATH}`: {str(file_err)}")
+        elif DEFAULT_PDF_PATH:
+            st.warning(f"⚠️ Configured PDF file not found at path: `{DEFAULT_PDF_PATH}`")
+        else:
+            st.info("No default PDF path set in `config.yaml` under `paths.research_pdf`.")
+
+        # Render PDF canvas component if data is available
+        if pdf_bytes:
+            st.success(f"📖 **Currently Displaying:** `{pdf_title}`")
+            base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+            
+            pdf_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+                <style>
+                    #pdf-container {{
+                        width: 100%;
+                        height: 800px;
+                        overflow-y: auto;
+                        background-color: #1e293b;
+                        text-align: center;
+                        padding: 15px 0;
+                        border-radius: 8px;
+                    }}
+                    canvas {{
+                        margin: 12px auto;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                        max-width: 95%;
+                        border-radius: 4px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div id="pdf-container"></div>
+                <script>
+                    const pdfData = atob("{base64_pdf}");
+                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+                    const loadingTask = pdfjsLib.getDocument({{data: pdfData}});
+                    loadingTask.promise.then(pdf => {{
+                        const container = document.getElementById('pdf-container');
+                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {{
+                            pdf.getPage(pageNum).then(page => {{
+                                const viewport = page.getViewport({{scale: 1.3}});
+                                const canvas = document.createElement('canvas');
+                                const context = canvas.getContext('2d');
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+                                container.appendChild(canvas);
+
+                                const renderContext = {{
+                                    canvasContext: context,
+                                    viewport: viewport
+                                }};
+                                page.render(renderContext);
+                            }});
+                        }}
+                    }});
+                </script>
+            </body>
+            </html>
+            """
+            components.html(pdf_html, height=820, scrolling=False)
+
+    # ---------------------------------------------------------------------------
+    # IMAGE VIEWER SUB-TAB
+    # ---------------------------------------------------------------------------
+    with research_img_tab:
+        uploaded_img = st.file_uploader(
+            "Upload Research Plot / Diagram", 
+            type=["png", "jpg", "jpeg", "webp"], 
+            key="img_research_uploader"
+        )
+        
+        if uploaded_img is not None:
+            st.image(
+                uploaded_img, 
+                caption=f"Uploaded Diagram: {uploaded_img.name}", 
+                use_container_width=True
+            )
+        else:
+            st.info("Upload an image file (PNG, JPG, JPEG, WebP) to visualize research plots or satellite imagery.")
