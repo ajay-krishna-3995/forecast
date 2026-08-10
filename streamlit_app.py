@@ -17,7 +17,7 @@ import streamlit.components.v1 as components
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
-
+from streamlit.components.v1 import html
 # -------------------------------------------------------------------------------
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
 # -------------------------------------------------------------------------------
