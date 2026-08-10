@@ -2,7 +2,7 @@
 # PATH & REFRESH CONFIGURATIONS
 # -------------------------------------------------------------------------------
 paths:
-  background_image: "Background.jpg"
+  background_image: "Image_back.jpg"
   india_shapefile: "India-State-and-Country-Shapefile-Updated-Jan-2020-master"
   grib_file: "data.grib2"
   research_pdf: "Renewable energy research.pdf"
