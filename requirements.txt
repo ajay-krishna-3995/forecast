@@ -19,4 +19,4 @@ numpy
 pyyaml
 xarray
 cfgrib
-ecmwf
+ecmwf-opendata
