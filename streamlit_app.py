@@ -808,5 +808,4 @@ with tab_weather_update:
         else:
             st.info("ECMWF forecast details for the next 2 days are currently compiling.")
     else:
-            st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
