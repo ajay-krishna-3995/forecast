@@ -600,7 +600,7 @@ with tab_meteogram:
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
     st.subheader("Rainfall Forecast : Indian region")
-    st.caption(Model : ECMWF-0.25x0.25)
+    st.caption("Model : ECMWF-0.25x0.25")
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
     
