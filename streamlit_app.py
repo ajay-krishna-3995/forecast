@@ -462,14 +462,39 @@ def process_grib_data_pure(file_path, selected_step_hours):
 
 location_name = get_location_name(st.session_state.lat, st.session_state.lon, selected_city)
 # -------------------------------------------------------------------------------
+# HELPER FUNCTIONS FOR IMD CLASSIFICATIONS
+# -------------------------------------------------------------------------------
+def categorize_imd_rainfall(val_mm):
+    if val_mm < 0.1: return "No Rainfall"
+    elif 0.1 <= val_mm <= 15.5: return "Very Light to Light Rainfall"
+    elif 15.6 <= val_mm <= 64.4: return "Moderate Rainfall"
+    elif 64.5 <= val_mm <= 115.5: return "Heavy Rainfall"
+    elif 115.6 <= val_mm <= 204.4: return "Very Heavy Rainfall"
+    else: return "Extremely Heavy Rainfall"
+
+def categorize_imd_wind(speed_kmh):
+    if speed_kmh < 20: return "Light Surface Winds"
+    elif 20 <= speed_kmh < 52: return "Moderate / Strong Gusty Winds"
+    elif 52 <= speed_kmh <= 61: return "Moderate Squall"
+    elif 62 <= speed_kmh <= 87: return "Severe Squall"
+    else: return "Very Severe Squall (>87 km/h)"
+
+def check_thunderstorm_conditions(max_cape=0, min_li=0, precip=0):
+    if max_cape > 1000 or precip > 5.0 or min_li < -3:
+        return "Thunderstorm with sudden electrical discharges & lightning likely"
+    return "Unlikely"
+
+location_name = get_location_name(st.session_state.lat, st.session_state.lon, selected_city)
+
+# -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
-tab_home, tab_meteogram, tab_grib_analysis, tab_research = st.tabs(["🏡 Home", "📈 Meteogram", "Rainfall", "Research"])
+tab_home, tab_meteogram, tab_grib_analysis, tab_research, tab_weather_update = st.tabs(["🏡 Home", "📈 Meteogram", "Rainfall","Weather update", "Research"])
 
 # --- 1. HOME TAB ---
 with tab_home:
     st.subheader(f"📍 {location_name}")
-    st.write(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
+    st.caption(f"Coordinates: `{st.session_state.lat}°N, {st.session_state.lon}°E` | Updated at: {datetime.datetime.now().strftime('%H:%M:%S Local')}")
     
     live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
     live_aqi = fetch_air_quality(st.session_state.lat, st.session_state.lon)
@@ -480,7 +505,7 @@ with tab_home:
         with c1: st.metric("🌡️ Surface Temperature", f"{live_weather['temperature_2m']} °C")
         with c2: st.metric("💧 Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
         with c3: st.metric("💨 Wind Velocity", f"{live_weather['wind_speed_10m'] / 3.6:.1f} m/s")
-        with c4: st.metric("🌧️ Current Gauge Rainfall", f"{live_weather['precipitation']} mm")
+        with c4: st.metric("🌧️ Gauge Rainfall", f"{live_weather['precipitation']} mm")
 
         st.markdown("---")
         dash_col1, dash_col2 = st.columns(2)
@@ -574,7 +599,7 @@ with tab_meteogram:
 
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("ECMWF Rainfall Forecast")
+    st.subheader("ECMWF GRIB Rainfall Forecast Map")
     
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
@@ -606,7 +631,6 @@ with tab_grib_analysis:
                 fig_grib.patch.set_alpha(0)
                 ax.patch.set_alpha(0)
                 ax.set_facecolor('none')
-                
                 ax.axis('off') 
                 for spine in ax.spines.values():
                     spine.set_visible(False)
@@ -630,19 +654,18 @@ with tab_grib_analysis:
                         txt.set_alpha(0.9)
                 
                 m.drawmapboundary(color=(1, 1, 1, 0.3), linewidth=0.5, fill_color='none')
-                
                 levels = [0, 0.1, 1, 2.5, 5, 10, 20, 35, 50, 75]
                 
                 import warnings
                 with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", message=".*collections attribute was deprecated.*")
+                    warnings.filterwarnings("ignore", category=UserWarning)
                     cf = m.contourf(
                         lon2d, lat2d, data_vals,
                         levels=levels, cmap="Greens", extend="max", latlon=True
                     )
                 
                 india_gdf.boundary.plot(ax=ax, edgecolor='black', linewidth=0.8, zorder=100, alpha=0.6)
-  
+
                 cbar = plt.colorbar(cf, pad=0.04, shrink=0.8)
                 cbar.set_label(units, color='white', weight='bold', fontsize=11)
                 cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=10)
@@ -654,7 +677,6 @@ with tab_grib_analysis:
                     fontsize=13, weight="bold", color="white", pad=15
                 )
                 plt.tight_layout()
-                
                 st.pyplot(fig_grib, clear_figure=True)
                 
             except Exception as e:
@@ -663,47 +685,27 @@ with tab_grib_analysis:
 # --- 4. RESEARCH TAB ---
 with tab_research:
     st.subheader("🔬 Research & Development Insights")
-    st.markdown("""
-    This section is dedicated to showcasing advanced meteorological research, experimental models, and data visualizations.
-    """)
-    
+    st.markdown("This section is dedicated to showcasing advanced meteorological research, experimental models, and data visualizations.")
     st.markdown("---")
     
-    # Read target PDF path dynamically from YAML configuration
     DEFAULT_PDF_PATH = CONFIG.get("paths", {}).get("research_pdf", "")
-    
     research_pdf_tab, research_img_tab = st.tabs(["📄 PDF Document Viewer", "Image Visualizer"])
     
-    # ---------------------------------------------------------------------------
-    # PDF VIEWER SUB-TAB (Auto-loads path from config.yaml)
-    # ---------------------------------------------------------------------------
     with research_pdf_tab:
-        uploaded_pdf = st.file_uploader(
-            "Upload your findings or research paper (PDF format)", 
-            type=["pdf"], 
-            key="pdf_research_uploader"
-        )
-        
+        uploaded_pdf = st.file_uploader("Upload your findings or research paper (PDF format)", type=["pdf"], key="pdf_research_uploader")
         pdf_bytes = None
         pdf_title = "Default Research Document"
 
-        # Check if user uploaded a file, otherwise fall back to config.yaml path
         if uploaded_pdf is not None:
             pdf_bytes = uploaded_pdf.read()
             pdf_title = uploaded_pdf.name
         elif DEFAULT_PDF_PATH and os.path.exists(DEFAULT_PDF_PATH):
             try:
-                with open(DEFAULT_PDF_PATH, "rb") as f:
-                    pdf_bytes = f.read()
+                with open(DEFAULT_PDF_PATH, "rb") as f: pdf_bytes = f.read()
                 pdf_title = os.path.basename(DEFAULT_PDF_PATH)
             except Exception as file_err:
                 st.error(f"Error reading PDF at `{DEFAULT_PDF_PATH}`: {str(file_err)}")
-        elif DEFAULT_PDF_PATH:
-            st.warning(f"⚠️ Configured PDF file not found at path: `{DEFAULT_PDF_PATH}`")
-        else:
-            st.info("No default PDF path set in `config.yaml` under `paths.research_pdf`.")
 
-        # Render PDF canvas component if data is available
         if pdf_bytes:
             st.success(f"📖 **Currently Displaying:** `{pdf_title}`")
             base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -714,21 +716,8 @@ with tab_research:
             <head>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
                 <style>
-                    #pdf-container {{
-                        width: 100%;
-                        height: 800px;
-                        overflow-y: auto;
-                        background-color: #1e293b;
-                        text-align: center;
-                        padding: 15px 0;
-                        border-radius: 8px;
-                    }}
-                    canvas {{
-                        margin: 12px auto;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-                        max-width: 95%;
-                        border-radius: 4px;
-                    }}
+                    #pdf-container {{ width: 100%; height: 800px; overflow-y: auto; background-color: #1e293b; text-align: center; padding: 15px 0; border-radius: 8px; }}
+                    canvas {{ margin: 12px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 95%; border-radius: 4px; }}
                 </style>
             </head>
             <body>
@@ -737,7 +726,6 @@ with tab_research:
                     const pdfData = atob("{base64_pdf}");
                     const pdfjsLib = window['pdfjs-dist/build/pdf'];
                     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
                     const loadingTask = pdfjsLib.getDocument({{data: pdfData}});
                     loadingTask.promise.then(pdf => {{
                         const container = document.getElementById('pdf-container');
@@ -749,12 +737,7 @@ with tab_research:
                                 canvas.height = viewport.height;
                                 canvas.width = viewport.width;
                                 container.appendChild(canvas);
-
-                                const renderContext = {{
-                                    canvasContext: context,
-                                    viewport: viewport
-                                }};
-                                page.render(renderContext);
+                                page.render({{canvasContext: context, viewport: viewport}});
                             }});
                         }}
                     }});
@@ -764,21 +747,66 @@ with tab_research:
             """
             components.html(pdf_html, height=820, scrolling=False)
 
-    # ---------------------------------------------------------------------------
-    # IMAGE VIEWER SUB-TAB
-    # ---------------------------------------------------------------------------
     with research_img_tab:
-        uploaded_img = st.file_uploader(
-            "Upload Research Plot / Diagram", 
-            type=["png", "jpg", "jpeg", "webp"], 
-            key="img_research_uploader"
-        )
-        
+        uploaded_img = st.file_uploader("Upload Research Plot / Diagram", type=["png", "jpg", "jpeg", "webp"], key="img_research_uploader")
         if uploaded_img is not None:
-            st.image(
-                uploaded_img, 
-                caption=f"Uploaded Diagram: {uploaded_img.name}", 
-                use_container_width=True
-            )
+            st.image(uploaded_img, caption=f"Uploaded Diagram: {uploaded_img.name}", use_container_width=True)
+
+# --- 5. WEATHER UPDATE TAB ---
+with tab_weather_update:
+    st.subheader(f"2-Day Weather Forecast Summary — {location_name}")
+    
+    # Fetch 2-day ECMWF forecast data
+    df_ecmwf = fetch_weather_data(st.session_state.lat, st.session_state.lon, 2, "ecmwf_ifs025")
+    
+    if df_ecmwf is not None and not df_ecmwf.empty:
+        today = datetime.datetime.now().date()
+        day1 = today
+        day2 = today + timedelta(days=1)
+        
+        df_day1 = df_ecmwf[df_ecmwf['time'].dt.date == day1]
+        df_day2 = df_ecmwf[df_ecmwf['time'].dt.date == day2]
+        
+        if not df_day1.empty and not df_day2.empty:
+            # Day 1 Metrics
+            t_max_1 = df_day1['temperature_2m'].max()
+            t_min_1 = df_day1['temperature_2m'].min()
+            rh_avg_1 = df_day1['relative_humidity_2m'].mean() if 'relative_humidity_2m' in df_day1 else 0
+            rain_1 = df_day1['precipitation'].sum()
+            wind_1_kmh = (df_day1['wind_speed_10m'].max() * 3.6) if 'wind_speed_10m' in df_day1 else 0
+            cape_1 = df_day1['cape'].max() if 'cape' in df_day1 else 0
+            li_1 = df_day1['lifted_index'].min() if 'lifted_index' in df_day1 else 0
+            ts_1 = check_thunderstorm_conditions(max_cape=cape_1, min_li=li_1, precip=rain_1)
+            
+            # Day 2 Metrics
+            t_max_2 = df_day2['temperature_2m'].max()
+            t_min_2 = df_day2['temperature_2m'].min()
+            rh_avg_2 = df_day2['relative_humidity_2m'].mean() if 'relative_humidity_2m' in df_day2 else 0
+            rain_2 = df_day2['precipitation'].sum()
+            wind_2_kmh = (df_day2['wind_speed_10m'].max() * 3.6) if 'wind_speed_10m' in df_day2 else 0
+            cape_2 = df_day2['cape'].max() if 'cape' in df_day2 else 0
+            li_2 = df_day2['lifted_index'].min() if 'lifted_index' in df_day2 else 0
+            ts_2 = check_thunderstorm_conditions(max_cape=cape_2, min_li=li_2, precip=rain_2)
+            
+            st.markdown(f"""
+            **📅 Today ({day1.strftime('%A, %b %d')})**
+            * **Rainfall Category:** {categorize_imd_rainfall(rain_1)} ({rain_1:.1f} mm)
+            * **Temperature:** High of **{t_max_1:.1f}°C** | Low of **{t_min_1:.1f}°C**
+            * **Relative Humidity:** Average around **{rh_avg_1:.0f}%**
+            * **Surface Wind:** {categorize_imd_wind(wind_1_kmh)} (Peak gust: **{wind_1_kmh:.1f} km/h**)
+            * **Thunderstorm / Lightning Activity:** {ts_1}
+            
+            ---
+            
+            **📅 Tomorrow ({day2.strftime('%A, %b %d')})**
+            * **Rainfall Category:** {categorize_imd_rainfall(rain_2)} ({rain_2:.1f} mm)
+            * **Temperature:** High of **{t_max_2:.1f}°C** | Low of **{t_min_2:.1f}°C**
+            * **Relative Humidity:** Average around **{rh_avg_2:.0f}%**
+            * **Surface Wind:** {categorize_imd_wind(wind_2_kmh)} (Peak gust: **{wind_2_kmh:.1f} km/h**)
+            * **Thunderstorm / Lightning Activity:** {ts_2}
+            """)
         else:
-            st.info("Upload an image file (PNG, JPG, JPEG, WebP) to visualize research plots or satellite imagery.")
+            st.info("ECMWF forecast details for the next 2 days are currently compiling.")
+    else:
+            st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
+        st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
