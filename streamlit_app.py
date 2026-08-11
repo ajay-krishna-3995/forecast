@@ -531,7 +531,7 @@ with tab_home:
 
 # --- 2. METEOGRAM TAB ---
 with tab_meteogram:
-    st.subheader(f"📈 High-Resolution Meteogram — {location_name}")
+    st.subheader(f"📈 Meteogram — {location_name}")
     
     tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (0.25°)", "US GFS Seamless"])
 
@@ -599,8 +599,8 @@ with tab_meteogram:
 
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("ECMWF GRIB Rainfall Forecast Map")
-    
+    st.subheader("Rainfall Forecast : Indian region")
+    st.caption(Model : ECMWF-0.25x0.25)
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
     
