@@ -630,7 +630,7 @@ with tab_grib_analysis:
         
         param_settings = [
             (p_tab_precip, "tp", "Greens", [0, 0.1, 1, 2.5, 5, 10, 20, 35, 50, 75], "ECMWF Total Precipitation"),
-            (p_tab_temp, "2t", "bwr", None, "ECMWF 2m Air Temperature"),
+            (p_tab_temp, "2t", "RYB", None, "ECMWF 2m Air Temperature"),
             (p_tab_wind, "100ws", "YlGnBu", None, "ECMWF 100m Wind Speed")
         ]
         
