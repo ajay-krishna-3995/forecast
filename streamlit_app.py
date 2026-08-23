@@ -614,7 +614,7 @@ with tab_meteogram:
 
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("ECMWF GRIB Forecast Analysis")
+    st.subheader("Grided Forecast Analysis")
     
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
