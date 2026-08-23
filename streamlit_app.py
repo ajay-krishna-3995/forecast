@@ -68,13 +68,14 @@ try:
     result = client.retrieve(
         time=12,
         type="fc",
-        param="tp",
+        param=["tp", "2t", "100u", "100v"],
         step=[24, 48, 72],
         target="data.grib2",
     )
     print(f"ECMWF Download Success - Valid Run Base Time: {result.datetime}")
 except Exception as e:
     print(f"ECMWF OpenData Client Error: {e}")
+
 
 # -------------------------------------------------------------------------------
 # LOAD CONFIGURATION FROM YAML
@@ -423,43 +424,57 @@ def fetch_weather_data(lat, lon, days, model_id):
     except Exception: return None
 
 @st.cache_data(show_spinner="Parsing Primary GRIB2 Data Matrix...")
-def process_grib_data_pure(file_path, selected_step_hours):
-    backend_kwargs = {"filter_by_keys": {"step": selected_step_hours}}
-    with xr.open_dataset(file_path, engine="cfgrib", backend_kwargs=backend_kwargs) as ds:
-        var_name = str(list(ds.data_vars)[0])
+def process_grib_data_pure(file_path, selected_step_hours, param_key="tp"):
+    def clean_date(t):
+        try:
+            v = pd.to_datetime(t)
+            return v.item().strftime("%Y-%m-%d %H:%M UTC") if hasattr(v, 'item') else v.strftime("%Y-%m-%d %H:%M UTC")
+        except: return str(t)
+
+    if param_key == "100ws":
+        backend_u = {"filter_by_keys": {"step": selected_step_hours, "shortName": "100u"}}
+        backend_v = {"filter_by_keys": {"step": selected_step_hours, "shortName": "100v"}}
         
-        def clean_date(t):
-            try:
-                v = pd.to_datetime(t)
-                return v.item().strftime("%Y-%m-%d %H:%M UTC") if hasattr(v, 'item') else v.strftime("%Y-%m-%d %H:%M UTC")
-            except:
-                return str(t)
-                
-        forecast_time_str = clean_date(ds.time.values)
-        valid_time_str = clean_date(ds.valid_time.values)
-        
-        region = ds.sel(latitude=slice(38, 5), longitude=slice(65, 98))
-        raw_values = np.array(region[var_name].values, dtype=np.float64)
-        lats = np.array(region.latitude.values, dtype=np.float64)
-        lons = np.array(region.longitude.values, dtype=np.float64)
-        
-        if var_name == "tp":
-            raw_values = raw_values * 1000.0
-            units = "mm"
-        else:
-            units = str(region[var_name].attrs.get("units", ""))
+        with xr.open_dataset(file_path, engine="cfgrib", backend_kwargs=backend_u) as ds_u, \
+             xr.open_dataset(file_path, engine="cfgrib", backend_kwargs=backend_v) as ds_v:
+            
+            f_time = clean_date(ds_u.time.values)
+            v_time = clean_date(ds_u.valid_time.values)
+            
+            reg_u = ds_u.sel(latitude=slice(38, 5), longitude=slice(65, 98))["u100"].values
+            reg_v = ds_v.sel(latitude=slice(38, 5), longitude=slice(65, 98))["v100"].values
+            
+            raw_values = np.sqrt(reg_u**2 + reg_v**2)
+            lats = np.array(ds_u.sel(latitude=slice(38, 5)).latitude.values, dtype=np.float64)
+            lons = np.array(ds_u.sel(longitude=slice(65, 98)).longitude.values, dtype=np.float64)
+            units = "m/s"
+    else:
+        backend_kwargs = {"filter_by_keys": {"step": selected_step_hours, "shortName": param_key}}
+        with xr.open_dataset(file_path, engine="cfgrib", backend_kwargs=backend_kwargs) as ds:
+            var_name = str(list(ds.data_vars)[0])
+            f_time = clean_date(ds.time.values)
+            v_time = clean_date(ds.valid_time.values)
+            region = ds.sel(latitude=slice(38, 5), longitude=slice(65, 98))
+            
+            raw_values = np.array(region[var_name].values, dtype=np.float64)
+            lats = np.array(region.latitude.values, dtype=np.float64)
+            lons = np.array(region.longitude.values, dtype=np.float64)
+            
+            if param_key == "tp":
+                raw_values = raw_values * 1000.0
+                units = "mm"
+            elif param_key == "2t":
+                raw_values = raw_values - 273.15
+                units = "°C"
+            else:
+                units = str(region[var_name].attrs.get("units", ""))
 
     lon2d, lat2d = np.meshgrid(lons, lats)
-    
     return {
-        "lon2d": lon2d,
-        "lat2d": lat2d,
-        "data_vals": raw_values,
-        "units": units,
-        "f_time": forecast_time_str,
-        "v_time": valid_time_str
+        "lon2d": lon2d, "lat2d": lat2d, "data_vals": raw_values,
+        "units": units, "f_time": f_time, "v_time": v_time
     }
-
+    
 location_name = get_location_name(st.session_state.lat, st.session_state.lon, selected_city)
 # -------------------------------------------------------------------------------
 # HELPER FUNCTIONS FOR IMD CLASSIFICATIONS
@@ -599,8 +614,8 @@ with tab_meteogram:
 
 # --- 3. RAINFALL MAP TAB ---
 with tab_grib_analysis:
-    st.subheader("Rainfall Forecast : Indian region")
-    st.caption("Model : ECMWF-0.25x0.25")
+    st.subheader("ECMWF GRIB Forecast Analysis")
+    
     grib_target_day = min(DAYS, 3) 
     target_step_hours = grib_target_day * 24
     
@@ -611,76 +626,85 @@ with tab_grib_analysis:
     elif not os.path.exists(SHAPEFILE_PATH):
         st.error(f"State boundary metrics missing at destination: `{SHAPEFILE_PATH}`")
     else:
-        with st.spinner(f"Extracting parameters for step {target_step_hours}h and plotting via Basemap..."):
-            try:
-                grib_payload = process_grib_data_pure(GRIB_FILE_PATH, target_step_hours)
-                
-                lon2d = grib_payload["lon2d"]
-                lat2d = grib_payload["lat2d"]
-                data_vals = grib_payload["data_vals"]
-                units = grib_payload["units"]
-                f_time = grib_payload["f_time"]
-                v_time = grib_payload["v_time"]
-                
-                india_gdf = gpd.read_file(SHAPEFILE_PATH)
-                if india_gdf.crs is not None:
-                    india_gdf = india_gdf.to_crs(epsg=4326)
-                
-                fig_grib, ax = plt.subplots(figsize=(12, 10))
+        p_tab_precip, p_tab_temp, p_tab_wind = st.tabs(["🌧️ Total Precipitation", "🌡️ 2m Temperature", "💨 100m Wind Speed"])
+        
+        param_settings = [
+            (p_tab_precip, "tp", "Greens", [0, 0.1, 1, 2.5, 5, 10, 20, 35, 50, 75], "ECMWF Total Precipitation"),
+            (p_tab_temp, "2t", "bwr", None, "ECMWF 2m Air Temperature"),
+            (p_tab_wind, "100ws", "YlGnBu", None, "ECMWF 100m Wind Speed")
+        ]
+        
+        india_gdf = gpd.read_file(SHAPEFILE_PATH)
+        if india_gdf.crs is not None:
+            india_gdf = india_gdf.to_crs(epsg=4326)
 
-                fig_grib.patch.set_alpha(0)
-                ax.patch.set_alpha(0)
-                ax.set_facecolor('none')
-                ax.axis('off') 
-                for spine in ax.spines.values():
-                    spine.set_visible(False)
-                
-                m = Basemap(
-                    projection='cyl',
-                    llcrnrlon=65, urcrnrlon=98, llcrnrlat=5, urcrnrlat=38,
-                    resolution='i', ax=ax
-                )
-                
-                parallels = m.drawparallels(np.arange(5, 41, 5), labels=[1, 0, 0, 0], fontsize=10, color='white', alpha=0.15, linewidth=0.6)
-                for p in parallels:
-                    for txt in parallels[p][1]:
-                        txt.set_color('white')
-                        txt.set_alpha(0.9)
+        for tab, short_name, cmap, levels, title_prefix in param_settings:
+            with tab:
+                with st.spinner(f"Extracting {title_prefix} for step {target_step_hours}h..."):
+                    try:
+                        grib_payload = process_grib_data_pure(GRIB_FILE_PATH, target_step_hours, param_key=short_name)
+                        
+                        lon2d = grib_payload["lon2d"]
+                        lat2d = grib_payload["lat2d"]
+                        data_vals = grib_payload["data_vals"]
+                        units = grib_payload["units"]
+                        f_time = grib_payload["f_time"]
+                        v_time = grib_payload["v_time"]
+                        
+                        fig_grib, ax = plt.subplots(figsize=(12, 10))
 
-                meridians = m.drawmeridians(np.arange(65, 101, 5), labels=[0, 0, 0, 1], fontsize=10, color='white', alpha=0.15, linewidth=0.6)
-                for m_val in meridians:
-                    for txt in meridians[m_val][1]:
-                        txt.set_color('white')
-                        txt.set_alpha(0.9)
-                
-                m.drawmapboundary(color=(1, 1, 1, 0.3), linewidth=0.5, fill_color='none')
-                levels = [0, 0.1, 1, 2.5, 5, 10, 20, 35, 50, 75]
-                
-                import warnings
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=UserWarning)
-                    cf = m.contourf(
-                        lon2d, lat2d, data_vals,
-                        levels=levels, cmap="Greens", extend="max", latlon=True
-                    )
-                
-                india_gdf.boundary.plot(ax=ax, edgecolor='black', linewidth=0.8, zorder=100, alpha=0.6)
+                        fig_grib.patch.set_alpha(0)
+                        ax.patch.set_alpha(0)
+                        ax.set_facecolor('none')
+                        ax.axis('off') 
+                        for spine in ax.spines.values():
+                            spine.set_visible(False)
+                        
+                        m = Basemap(
+                            projection='cyl',
+                            llcrnrlon=65, urcrnrlon=98, llcrnrlat=5, urcrnrlat=38,
+                            resolution='i', ax=ax
+                        )
+                        
+                        parallels = m.drawparallels(np.arange(5, 41, 5), labels=[1, 0, 0, 0], fontsize=10, color='white', alpha=0.15, linewidth=0.6)
+                        for p in parallels:
+                            for txt in parallels[p][1]:
+                                txt.set_color('white')
+                                txt.set_alpha(0.9)
 
-                cbar = plt.colorbar(cf, pad=0.04, shrink=0.8)
-                cbar.set_label(units, color='white', weight='bold', fontsize=11)
-                cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=10)
-                cbar.outline.set_edgecolor('white')
-                cbar.outline.set_linewidth(1.0)
-                
-                plt.title(
-                    f"ECMWF Total Precipitation ({target_step_hours}h Forecast Horizon)\nForecast Run: {f_time}  |  Valid Time: {v_time}",
-                    fontsize=13, weight="bold", color="white", pad=15
-                )
-                plt.tight_layout()
-                st.pyplot(fig_grib, clear_figure=True)
-                
-            except Exception as e:
-                st.error(f"Failed to process target files. Error trace: {str(e)}")
+                        meridians = m.drawmeridians(np.arange(65, 101, 5), labels=[0, 0, 0, 1], fontsize=10, color='white', alpha=0.15, linewidth=0.6)
+                        for m_val in meridians:
+                            for txt in meridians[m_val][1]:
+                                txt.set_color('white')
+                                txt.set_alpha(0.9)
+                        
+                        m.drawmapboundary(color=(1, 1, 1, 0.3), linewidth=0.5, fill_color='none')
+                        
+                        import warnings
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("ignore", category=UserWarning)
+                            if levels:
+                                cf = m.contourf(lon2d, lat2d, data_vals, levels=levels, cmap=cmap, extend="max", latlon=True)
+                            else:
+                                cf = m.contourf(lon2d, lat2d, data_vals, levels=15, cmap=cmap, extend="both", latlon=True)
+                        
+                        india_gdf.boundary.plot(ax=ax, edgecolor='black', linewidth=0.8, zorder=100, alpha=0.6)
+
+                        cbar = plt.colorbar(cf, pad=0.04, shrink=0.8)
+                        cbar.set_label(f"({units})", color='white', weight='bold', fontsize=11)
+                        cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=10)
+                        cbar.outline.set_edgecolor('white')
+                        cbar.outline.set_linewidth(1.0)
+                        
+                        plt.title(
+                            f"{title_prefix} ({target_step_hours}h Forecast Horizon)\nForecast Run: {f_time}  |  Valid Time: {v_time}",
+                            fontsize=13, weight="bold", color="white", pad=15
+                        )
+                        plt.tight_layout()
+                        st.pyplot(fig_grib, clear_figure=True)
+                        
+                    except Exception as e:
+                        st.error(f"Failed to process parameter {short_name}. Error: {str(e)}")
 
 # --- 4. RESEARCH TAB ---
 with tab_research:
