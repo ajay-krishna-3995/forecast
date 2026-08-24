@@ -12,7 +12,7 @@ python-dotenv
 geopandas
 cartopy
 Shapely
-
+netCDF4
 basemap
 streamlit
 numpy
