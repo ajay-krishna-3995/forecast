@@ -504,8 +504,8 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon, se
 # -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
-tab_home, tab_meteogram, tab_rainfall, tab_weather_update, tab_research, tab_uploader = st.tabs(
-    ["🏡 Home", "📈 Meteogram", "🌧️ Rainfall", "🌤️ Weather Update", "🔬 Research", "🗺️ NC/GRIB Visualizer"]
+tab_home, tab_meteogram, tab_grib_analysis, tab_research, tab_weather_update, tab_uploader = st.tabs(
+    ["🏡 Home", "📈 Meteogram", "Rainfall", "Weather update", "Research", "🗺️ NC/GRIB Visualizer"]
 )
 
 # --- 1. HOME TAB ---
