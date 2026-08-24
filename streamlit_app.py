@@ -18,7 +18,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 from streamlit.components.v1 import html
-
+from uploader import render_custom_dataset_uploader
 # 1. Page Config (MUST BE FIRST STREAMLIT COMMAND)
 st.set_page_config(
     page_title="Weather, Air Quality & Monsoon",
@@ -504,7 +504,9 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon, se
 # -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
-tab_home, tab_meteogram, tab_grib_analysis, tab_research, tab_weather_update = st.tabs(["🏡 Home", "📈 Meteogram", "Rainfall", "Research","Weather summary"])
+tab_home, tab_meteogram, tab_grib_analysis, tab_research, tab_weather_update, tab_uploader = st.tabs(
+    ["🏡 Home", "📈 Meteogram", "Rainfall", "Weather update", "Research", "🗺️ NC/GRIB Visualizer"]
+)
 
 # --- 1. HOME TAB ---
 with tab_home:
@@ -833,3 +835,6 @@ with tab_weather_update:
             st.info("ECMWF forecast details for the next 2 days are currently compiling.")
     else:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
+        # --- 6. CUSTOM VISUALIZER TAB ---
+with tab_uploader:
+        render_custom_dataset_uploader()
