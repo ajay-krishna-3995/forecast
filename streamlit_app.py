@@ -766,5 +766,3 @@ with tab_weather_update:
     else:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         # --- 6. CUSTOM VISUALIZER TAB ---
-with tab_uploader:
-        render_custom_dataset_uploader()
