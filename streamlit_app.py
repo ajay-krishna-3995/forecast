@@ -550,10 +550,10 @@ with tab_home:
 with tab_meteogram:
     st.subheader(f"📈 Meteogram — {location_name}")
     
-    tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (0.25°)", "US GFS Seamless"])
+    tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (9km)", "US GFS Seamless"])
 
     models_config = {
-        "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS", "tab": tab_ecmwf},
+        "ECMWF": {"api_id": "ecmwf_ifs", "title": "ECMWF IFS", "tab": tab_ecmwf},
         "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
     }
 
