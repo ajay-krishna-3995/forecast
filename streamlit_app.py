@@ -20,10 +20,12 @@ from streamlit_autorefresh import st_autorefresh
 from streamlit.components.v1 import html
 from uploader import render_custom_dataset_uploader
 # 1. Page Config (MUST BE FIRST STREAMLIT COMMAND)
+# 1. Page Config (MUST BE FIRST STREAMLIT COMMAND)
 st.set_page_config(
     page_title="Weather, Air Quality & Monsoon",
     page_icon="⛈️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # 2. Hide Header & Viewer Badges Immediately
