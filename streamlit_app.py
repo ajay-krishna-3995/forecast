@@ -46,19 +46,33 @@ setInterval(hideViewerBadge, 500);
 ''', height=0, width=0)
 
 st.markdown("""
-<style>
-/* Completely eliminate top header bar and actions */
-header, .stAppHeader, [data-testid="stHeader"] {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0px !important;
-}
+    <style>
+    /* Completely eliminate top header bar and actions */
+    header, .stAppHeader, [data-testid="stHeader"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0px !important;
+    }
 
-/* Adjust top padding so content doesn't get cut off */
-.block-container {
-    padding-top: 1rem !important;
-}
-</style>
+    /* Pin sidebar by hiding the collapse/expand controls */
+    [data-testid="stSidebarCollapseButton"], 
+    [data-testid="collapsedControl"],
+    button[kind="headerNoPadding"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Optional: Lock a fixed width so it cannot be resized by dragging */
+    section[data-testid="stSidebar"] {
+        min-width: 320px !important;
+        max-width: 320px !important;
+    }
+
+    /* Adjust top padding so content doesn't get cut off */
+    .block-container {
+        padding-top: 1rem !important;
+    }
+    </style>
 """, unsafe_allow_html=True)
 # -------------------------------------------------------------------------------
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
