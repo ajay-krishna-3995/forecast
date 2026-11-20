@@ -505,7 +505,7 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon, se
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
 tab_home, tab_meteogram, tab_grib_analysis, tab_research, tab_weather_update, tab_uploader = st.tabs(
-    ["🏡 Home", "📈 Meteogram", "Rainfall", "Research","Weather update", "🗺️ NC/GRIB Visualizer"]
+    ["🏡 Home", "📈 Meteogram", "Rainfall","Weather update"]
 )
 
 # --- 1. HOME TAB ---
@@ -707,76 +707,6 @@ with tab_grib_analysis:
                         
                     except Exception as e:
                         st.error(f"Failed to process parameter {short_name}. Error: {str(e)}")
-
-# --- 4. RESEARCH TAB ---
-with tab_research:
-    st.subheader("🔬 Research & Development Insights")
-    st.markdown("This section is dedicated to showcasing advanced meteorological research, experimental models, and data visualizations.")
-    st.markdown("---")
-    
-    DEFAULT_PDF_PATH = CONFIG.get("paths", {}).get("research_pdf", "")
-    research_pdf_tab, research_img_tab = st.tabs(["📄 PDF Document Viewer", "Image Visualizer"])
-    
-    with research_pdf_tab:
-        uploaded_pdf = st.file_uploader("Upload your findings or research paper (PDF format)", type=["pdf"], key="pdf_research_uploader")
-        pdf_bytes = None
-        pdf_title = "Default Research Document"
-
-        if uploaded_pdf is not None:
-            pdf_bytes = uploaded_pdf.read()
-            pdf_title = uploaded_pdf.name
-        elif DEFAULT_PDF_PATH and os.path.exists(DEFAULT_PDF_PATH):
-            try:
-                with open(DEFAULT_PDF_PATH, "rb") as f: pdf_bytes = f.read()
-                pdf_title = os.path.basename(DEFAULT_PDF_PATH)
-            except Exception as file_err:
-                st.error(f"Error reading PDF at `{DEFAULT_PDF_PATH}`: {str(file_err)}")
-
-        if pdf_bytes:
-            st.success(f"📖 **Currently Displaying:** `{pdf_title}`")
-            base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-            
-            pdf_html = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-                <style>
-                    #pdf-container {{ width: 100%; height: 800px; overflow-y: auto; background-color: #1e293b; text-align: center; padding: 15px 0; border-radius: 8px; }}
-                    canvas {{ margin: 12px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 95%; border-radius: 4px; }}
-                </style>
-            </head>
-            <body>
-                <div id="pdf-container"></div>
-                <script>
-                    const pdfData = atob("{base64_pdf}");
-                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-                    const loadingTask = pdfjsLib.getDocument({{data: pdfData}});
-                    loadingTask.promise.then(pdf => {{
-                        const container = document.getElementById('pdf-container');
-                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {{
-                            pdf.getPage(pageNum).then(page => {{
-                                const viewport = page.getViewport({{scale: 1.3}});
-                                const canvas = document.createElement('canvas');
-                                const context = canvas.getContext('2d');
-                                canvas.height = viewport.height;
-                                canvas.width = viewport.width;
-                                container.appendChild(canvas);
-                                page.render({{canvasContext: context, viewport: viewport}});
-                            }});
-                        }}
-                    }});
-                </script>
-            </body>
-            </html>
-            """
-            components.html(pdf_html, height=820, scrolling=False)
-
-    with research_img_tab:
-        uploaded_img = st.file_uploader("Upload Research Plot / Diagram", type=["png", "jpg", "jpeg", "webp"], key="img_research_uploader")
-        if uploaded_img is not None:
-            st.image(uploaded_img, caption=f"Uploaded Diagram: {uploaded_img.name}", use_container_width=True)
 
 # --- 5. WEATHER UPDATE TAB ---
 with tab_weather_update:
