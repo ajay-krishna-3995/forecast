@@ -438,6 +438,36 @@ def fetch_weather_data(lat, lon, days, model_id):
         df["time"] = pd.to_datetime(df["time"])
         return df
     except Exception: return None
+@st.cache_data(show_spinner="Fetching 51-member ensemble data from Open-Meteo...")
+def fetch_ecmwf_ensemble_51(lat, lon, days=10, model="ecmwf_ifs025"):
+    # 1) Fetch 51 ensemble members
+    ens_url = "https://ensemble-api.open-meteo.com/v1/ensemble"
+    ens_vars = [
+        "temperature_2m",
+        "relative_humidity_2m",
+        "wind_speed_10m",
+        "dew_point_2m"
+        "precipitation",
+    ]
+    ens_params = {
+        "latitude": lat,
+        "longitude": lon,
+        "models": model,
+        "hourly": ens_vars,
+        "forecast_days": days,
+        "timezone": "auto",
+    }
+
+    resp = requests.get(ens_url, params=ens_params, timeout=30)
+    data = resp.json()
+
+    if "hourly" not in data or resp.status_code != 200:
+        err_msg = data.get("reason", "Could not fetch ensemble data.")
+        st.error(f"Open-Meteo Ensemble API error: {err_msg}")
+        return None
+
+    df_ens = pd.DataFrame(data["hourly"])
+    df_ens["time"] = pd.to_datetime(df_ens["time"])
 
 @st.cache_data(show_spinner="Parsing Primary GRIB2 Data Matrix...")
 def process_grib_data_pure(file_path, selected_step_hours, param_key="tp"):
@@ -520,8 +550,8 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon, se
 # -------------------------------------------------------------------------------
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
-tab_home, tab_meteogram, tab_grib_analysis, tab_weather_update = st.tabs(
-    ["🏡 Home", "📈 Meteogram", "Rainfall","Weather update"]
+tab_home, tab_meteogram, tab_grib_analysis, tab_weather_update, tab_fog = st.tabs(
+    ["🏡 Home", "📈 Meteogram", "Rainfall","Weather update","Fog"]
 )
 
 # --- 1. HOME TAB ---
@@ -782,3 +812,122 @@ with tab_weather_update:
     else:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         # --- 6. CUSTOM VISUALIZER TAB ---
+        with tab_fog:
+            st.subheader(f"📈 Ensemble Meteogram — {location_name}")
+        
+            tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF_ENS)
+        
+            models_config = {
+                "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS Ensemble", "tab": tab_ecmwf},
+            }
+        
+            for model_key, config in models_config.items():
+                with config["tab"]:
+                    with st.spinner(f"Aggregating ensemble members and generating {config['title']} charts..."):
+                        df_ens = fetch_ecmwf_ensemble_51(
+                            st.session_state.lat,
+                            st.session_state.lon,
+                            DAYS,
+                            config["api_id"],
+                        )
+        
+                        if df_ens is not None and not df_ens.empty:
+                            try:
+                                t_cols = get_member_cols(df_ens, "temperature_2m")
+                                td_cols = get_member_cols(df_ens, "dew_point_2m")
+                                rh_cols = get_member_cols(df_ens, "relative_humidity_2m")
+                                pr_cols = get_member_cols(df_ens, "precipitation")
+                                ws_cols = get_member_cols(df_ens, "wind_speed_10m")
+        
+                                t_mean = df_ens[t_cols].mean(axis=1)
+                                t_p10 = df_ens[t_cols].quantile(0.10, axis=1)
+                                t_p90 = df_ens[t_cols].quantile(0.90, axis=1)
+        
+                                td_mean = df_ens[td_cols].mean(axis=1)
+                                rh_mean = df_ens[rh_cols].mean(axis=1)
+                                pr_mean = df_ens[pr_cols].mean(axis=1)
+        
+                                # Convert wind speed from km/h to m/s
+                                ws_ms_df = df_ens[ws_cols] / 3.6
+                                ws_mean = ws_ms_df.mean(axis=1)
+                                ws_p10 = ws_ms_df.quantile(0.10, axis=1)
+                                ws_p90 = ws_ms_df.quantile(0.90, axis=1)
+        
+                                fig_meteo, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+        
+                                fig_meteo.patch.set_alpha(0)
+                                for ax in [ax1, ax2, ax3]:
+                                    ax.patch.set_alpha(0)
+                                    ax.set_facecolor("none")
+                                    ax.tick_params(colors="white", which="both", labelsize=10)
+                                    ax.xaxis.label.set_color("white")
+                                    ax.yaxis.label.set_color("white")
+                                    ax.grid(True, color="white", alpha=0.1, linestyle="--")
+                                    for spine in ax.spines.values():
+                                        spine.set_edgecolor("white")
+                                        spine.set_alpha(0.3)
+        
+                                # Panel 1: Temperature ensemble spread + mean, Dew Point, and RH
+                                ax1.fill_between(
+                                    df_ens["time"], t_p10, t_p90,
+                                    color="#f97316", alpha=0.18, label="Temp P10–P90 Spread"
+                                )
+                                ax1.plot(
+                                    df_ens["time"], t_mean,
+                                    color="#f97316", linewidth=2.0, label="Ensemble Mean Temp (°C)"
+                                )
+                                ax1.plot(
+                                    df_ens["time"], td_mean,
+                                    color="#38bdf8", linewidth=1.5, linestyle=":", label="Mean Dew Point (°C)"
+                                )
+                                ax1.set_ylabel("Temperature (°C)", weight="bold")
+                                ax1.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+        
+                                ax1_rh = ax1.twinx()
+                                ax1_rh.patch.set_alpha(0)
+                                ax1_rh.plot(
+                                    df_ens["time"], rh_mean,
+                                    color="#10b981", linewidth=1.0, alpha=0.5, label="Mean RH (%)"
+                                )
+                                ax1_rh.set_ylabel("Humidity (%)", color="#10b981", alpha=0.7)
+                                ax1_rh.tick_params(colors="#10b981", which="both", labelcolor="#10b981")
+                                ax1_rh.spines["right"].set_edgecolor("#10b981")
+                                ax1_rh.spines["right"].set_alpha(0.4)
+        
+                                # Panel 2: Mean precipitation + faint individual members
+                                for col in pr_cols:
+                                    ax2.plot(
+                                        df_ens["time"], df_ens[col],
+                                        color="#60a5fa", linewidth=0.5, alpha=0.15
+                                    )
+                                ax2.bar(
+                                    df_ens["time"], pr_mean,
+                                    color="#2563eb", width=0.03, label="Ensemble Mean Rain (mm)"
+                                )
+                                ax2.set_ylabel("Precipitation (mm)", weight="bold")
+                                ax2.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+        
+                                # Panel 3: Wind speed ensemble spread + mean
+                                ax3.fill_between(
+                                    df_ens["time"], ws_p10, ws_p90,
+                                    color="#eab308", alpha=0.18, label="Wind P10–P90 Spread"
+                                )
+                                ax3.plot(
+                                    df_ens["time"], ws_mean,
+                                    color="#eab308", linewidth=1.8, label="Ensemble Mean Wind (m/s)"
+                                )
+                                ax3.set_ylabel("Wind Velocity (m/s)", weight="bold")
+                                ax3.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+        
+                                ax3.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%H:%M"))
+                                ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
+        
+                                plt.tight_layout()
+                                st.pyplot(fig_meteo, clear_figure=True)
+        
+                            except Exception as plot_err:
+                                st.error(f"Failed to assemble the {config['title']} time-series charts: {str(plot_err)}")
+                        else:
+                            st.error(f"Unable to compile {config['title']} timeline matrices from ensemble API.")
+                    
+                
