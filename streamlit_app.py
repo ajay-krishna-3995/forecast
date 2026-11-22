@@ -815,7 +815,7 @@ with tab_weather_update:
         with tab_fog:
             st.subheader(f"📈 Ensemble Meteogram — {location_name}")
         
-            tab_ecmwf = st.tabs(["EU ECMWF_ENS)
+            tab_ecmwf = st.tabs(["EU ECMWF_ENS"])
         
             models_config = {
                 "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS Ensemble", "tab": tab_ecmwf},
