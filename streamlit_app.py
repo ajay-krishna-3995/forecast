@@ -565,7 +565,7 @@ location_name = get_location_name(st.session_state.lat, st.session_state.lon, se
 # WORKSPACE LAYOUT & GRAPHICS RENDERING
 # -------------------------------------------------------------------------------
 tab_home, tab_meteogram, tab_grib_analysis, tab_weather_update, tab_fog = st.tabs(
-    ["🏡 Home", "📈 Meteogram", "Rainfall","Weather update","Fog"]
+    ["🏡 Home", "📈 Meteogram", "Rainfall","Weather update","🌨️Fog"]
 )
 
 # --- 1. HOME TAB ---
@@ -827,7 +827,7 @@ with tab_weather_update:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         # --- 6. CUSTOM VISUALIZER TAB ---
 with tab_fog:
-    st.subheader(f"📈 Ensemble Forecast — {location_name}")
+    st.subheader(f"📈 Ensemble Forecast — {location_name}"n/ Conditions for fog: Rlative Humidity >95%, Temperature equals dew point,n/ windspeed < 2.5m/s, Rainfall = 0mm, wind direction (mostly easteriles))
 
     tab_ecmwf = st.tabs(["EU ECMWF_ENS"])[0]
     models_config = {
@@ -888,7 +888,7 @@ with tab_fog:
                         ws_p90 = ws_ms_df.quantile(0.90, axis=1)
 
                         # 1. Temperature & Dew Point
-                        st.markdown("#### 🌡️ Temperature & Dew Point")
+                        st.markdown("####  Temperature & Dew Point")
                         fig_temp, ax_temp = plt.subplots(figsize=(12, 4))
                         fig_temp.patch.set_alpha(0)
                         style_ax(ax_temp)
@@ -910,7 +910,7 @@ with tab_fog:
                         st.pyplot(fig_temp, clear_figure=True)
 
                         # 2. Relative Humidity
-                        st.markdown("#### 💧 Relative Humidity")
+                        st.markdown("####  Relative Humidity")
                         fig_rh, ax_rh = plt.subplots(figsize=(12, 4))
                         fig_rh.patch.set_alpha(0)
                         style_ax(ax_rh)
@@ -929,7 +929,7 @@ with tab_fog:
                         st.pyplot(fig_rh, clear_figure=True)
 
                         # 3. Precipitation
-                        st.markdown("#### 🌧️ Precipitation")
+                        st.markdown("####  Precipitation")
                         fig_pr, ax_pr = plt.subplots(figsize=(12, 4))
                         fig_pr.patch.set_alpha(0)
                         style_ax(ax_pr)
@@ -948,7 +948,7 @@ with tab_fog:
                         st.pyplot(fig_pr, clear_figure=True)
 
                         # 4. Wind Speed
-                        st.markdown("#### 💨 Wind Velocity")
+                        st.markdown("####  Wind Velocity")
                         fig_ws, ax_ws = plt.subplots(figsize=(12, 4))
                         fig_ws.patch.set_alpha(0)
                         style_ax(ax_ws)
