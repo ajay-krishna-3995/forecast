@@ -827,7 +827,6 @@ with tab_weather_update:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         # --- 6. CUSTOM VISUALIZER TAB ---
 with tab_fog:
-with tab_fog:
     st.subheader(f"📈 Ensemble Forecast — {location_name}")
     st.caption(
         "Fog conditions: relative humidity >95%, temperature near the dew point, "
