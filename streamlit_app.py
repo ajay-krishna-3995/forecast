@@ -832,6 +832,9 @@ with tab_weather_update:
         st.warning("Unable to fetch ECMWF forecast data from Open-Meteo. Please check connection.")
         # --- 6. CUSTOM VISUALIZER TAB ---
 with tab_fog:
+    st.subheader(f"📈 Ensemble Forecast — {location_name}")
+
+    tab_ecmwf = st.tabs(["EU ECMWF_ENS"])[0]
     models_config = {
         "ECMWF": {
             "api_id": "ecmwf_ifs025",
