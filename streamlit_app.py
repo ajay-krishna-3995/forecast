@@ -814,15 +814,19 @@ with tab_weather_update:
         # --- 6. CUSTOM VISUALIZER TAB ---
 with tab_fog:
     st.subheader(f"📈 Ensemble Meteogram — {location_name}")
-        
-            tab_ecmwf = st.tabs(["EU ECMWF_ENS"])
-        
-            models_config = {
-                "ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS Ensemble", "tab": tab_ecmwf},
-            }
-        
-            for model_key, config in models_config.items():
-                with config["tab"]:
+
+    tab_ecmwf = st.tabs(["EU ECMWF_ENS"])[0]
+
+    models_config = {
+        "ECMWF": {
+            "api_id": "ecmwf_ifs025",
+            "title": "ECMWF IFS Ensemble",
+            "tab": tab_ecmwf,
+        },
+    }
+
+    for model_key, config in models_config.items():
+        with config["tab"]:
                     with st.spinner(f"Aggregating ensemble members and generating {config['title']} charts..."):
                         df_ens = fetch_ecmwf_ensemble_51(
                             st.session_state.lat,
