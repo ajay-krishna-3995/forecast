@@ -46,33 +46,29 @@ setInterval(hideViewerBadge, 500);
 ''', height=0, width=0)
 
 st.markdown("""
-    <style>
-    /* Completely eliminate top header bar and actions */
-    header, .stAppHeader, [data-testid="stHeader"] {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0px !important;
-    }
+<style>
+/* Hide sidebar collapse controls */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+    display: none !important;
+}
 
-    /* Pin sidebar by hiding the collapse/expand controls */
-    [data-testid="stSidebarCollapseButton"], 
-    [data-testid="collapsedControl"],
-    button[kind="headerNoPadding"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
+/* Pin sidebar open */
+section[data-testid="stSidebar"] {
+    min-width: 320px !important;
+    max-width: 320px !important;
+    transform: none !important;
+    visibility: visible !important;
+}
 
-    /* Optional: Lock a fixed width so it cannot be resized by dragging */
+/* Prevent sidebar closing through keyboard or resize */
+@media (max-width: 768px) {
     section[data-testid="stSidebar"] {
-        min-width: 320px !important;
-        max-width: 320px !important;
+        position: relative !important;
+        width: 320px !important;
     }
-
-    /* Adjust top padding so content doesn't get cut off */
-    .block-container {
-        padding-top: 1rem !important;
-    }
-    </style>
+}
+</style>
 """, unsafe_allow_html=True)
 # -------------------------------------------------------------------------------
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
