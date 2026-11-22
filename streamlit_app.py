@@ -2,7 +2,6 @@ import os
 import datetime
 import requests
 import folium
-import base64
 import yaml
 import numpy as np
 import pandas as pd
@@ -10,64 +9,68 @@ import geopandas as gpd
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime as dt, timedelta
-from scipy.ndimage import gaussian_filter
+from datetime import timedelta
 from mpl_toolkits.basemap import Basemap
-import streamlit.components.v1 as components
 import streamlit as st
 from streamlit_folium import st_folium
-from streamlit_autorefresh import st_autorefresh
-from streamlit.components.v1 import html
-from uploader import render_custom_dataset_uploader
 
 st.set_page_config(
     page_title="Weather, Air Quality & Monsoon",
     page_icon="⛈️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 st.markdown("""
 <style>
-/* Keep Streamlit Cloud chrome and the sidebar open */
-header, [data-testid="stHeader"] { display: none !important; }
+header, [data-testid="stHeader"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+}
 [data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="collapsedControl"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+[data-testid="stSidebarNav"] { display: none !important; }
 section[data-testid="stSidebar"] {
     width: 320px !important;
     min-width: 320px !important;
     max-width: 320px !important;
-    position: relative !important;
-    transform: none !important;
-    background: #f8fafc !important;
-    border-right: 1px solid #dbe4ef;
+    background: rgba(17, 24, 39, 0.97) !important;
+    border-right: 1px solid #334155;
 }
-[data-testid="stSidebar"] * { color: #111827 !important; }
-[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="stSidebar"] * { color: #f3f4f6 !important; }
 .stApp {
-    background: #eef4fb !important;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
 }
 .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3,
 .stApp h4, .stApp h5, .stApp h6, .stApp label,
-.stApp span, .stApp li { color: #111827 !important; }
+.stApp span, .stApp li { color: #f3f4f6 !important; }
 .block-container { padding-top: 1.25rem !important; }
 footer, #MainMenu, [data-testid="stToolbar"],
 [data-testid="stStatusWidget"], [data-testid="stDecoration"],
 [data-testid="stViewerFooter"] { display: none !important; }
-div[data-baseweb="select"] *, div[data-baseweb="input"] *,
-.stSelectbox *, .stNumberInput input { color: #111827 !important; }
 div[data-baseweb="select"], div[data-baseweb="input"],
 .stNumberInput input, .stSelectbox div {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #111827 !important;
+    background: #1e293b !important;
+    border: 1px solid #475569 !important;
+    color: #ffffff !important;
 }
-[data-testid="stTab"] { color: #334155 !important; }
-[data-testid="stTab"][aria-selected="true"] { color: #1d4ed8 !important; }
+div[data-baseweb="select"] *, div[data-baseweb="input"] *,
+.stSelectbox *, .stNumberInput input { color: #ffffff !important; }
+[data-testid="stTab"] { color: #cbd5e1 !important; }
+[data-testid="stTab"][aria-selected="true"] { color: #60a5fa !important; }
+[data-testid="stMetric"] {
+    background: rgba(30, 41, 59, 0.72);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 12px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ECMWF DATA RETRIEVAL API
 from ecmwf.opendata import Client
 
 try:
@@ -92,7 +95,6 @@ CONFIG = load_config()
 SHAPEFILE_PATH = CONFIG["paths"]["india_shapefile"]
 GRIB_FILE_PATH = "data.grib2"
 MAJOR_CITIES = CONFIG["major_cities"]
-REFRESH_MS = CONFIG["refresh_interval_ms"]
 
 st.title("⛈️ Weather, AQI & Rainfall Forecasting")
 st.markdown("Plan Better with Smarter Weather ☔")
@@ -133,11 +135,7 @@ if lat_input != st.session_state.lat or lon_input != st.session_state.lon:
 st.sidebar.markdown("---")
 st.sidebar.markdown("##### 🗺️ Map Target Picker")
 m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=7, tiles="OpenStreetMap")
-folium.Marker(
-    [st.session_state.lat, st.session_state.lon],
-    popup=f"Target: {selected_city}",
-    tooltip="Active Station Target"
-).add_to(m)
+folium.Marker([st.session_state.lat, st.session_state.lon], popup=f"Target: {selected_city}", tooltip="Active Station Target").add_to(m)
 map_data = st_folium(m, height=220, width=None, key="sidebar_map_selector", returned_objects=["last_clicked"])
 
 if map_data and map_data.get("last_clicked"):
@@ -155,7 +153,7 @@ def get_location_name(lat, lon, current_city_label):
         if current_city_label != "Custom Location":
             return current_city_label
         geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&zoom=10"
-        res = requests.get(geo_url, headers={'User-Agent': 'WeatherHubApp/2.0'}, timeout=3).json()
+        res = requests.get(geo_url, headers={"User-Agent": "WeatherHubApp/2.0"}, timeout=3).json()
         if "display_name" in res:
             parts = res["display_name"].split(",")
             return f"{parts[0].strip()}, {parts[-1].strip()}"
@@ -211,14 +209,7 @@ def fetch_weather_data(lat, lon, days, model_id):
 @st.cache_data(show_spinner="Fetching ECMWF ensemble data from Open-Meteo...")
 def fetch_ecmwf_ensemble_51(lat, lon, days=10, model="ecmwf_ifs025"):
     url = "https://ensemble-api.open-meteo.com/v1/ensemble"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "models": model,
-        "hourly": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "dew_point_2m", "precipitation"],
-        "forecast_days": days,
-        "timezone": "auto",
-    }
+    params = {"latitude": lat, "longitude": lon, "models": model, "hourly": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "dew_point_2m", "precipitation"], "forecast_days": days, "timezone": "auto"}
     try:
         response = requests.get(url, params=params, timeout=30)
         data = response.json()
@@ -245,7 +236,7 @@ def process_grib_data_pure(file_path, selected_step_hours, param_key="tp"):
     def clean_date(t):
         try:
             v = pd.to_datetime(t)
-            return v.item().strftime("%Y-%m-%d %H:%M UTC") if hasattr(v, 'item') else v.strftime("%Y-%m-%d %H:%M UTC")
+            return v.item().strftime("%Y-%m-%d %H:%M UTC") if hasattr(v, "item") else v.strftime("%Y-%m-%d %H:%M UTC")
         except Exception:
             return str(t)
 
@@ -285,19 +276,28 @@ def process_grib_data_pure(file_path, selected_step_hours, param_key="tp"):
 location_name = get_location_name(st.session_state.lat, st.session_state.lon, selected_city)
 
 def categorize_imd_rainfall(val_mm):
-    if val_mm < 0.1: return "No Rainfall"
-    elif 0.1 <= val_mm <= 15.5: return "Very Light to Light Rainfall"
-    elif 15.6 <= val_mm <= 64.4: return "Moderate Rainfall"
-    elif 64.5 <= val_mm <= 115.5: return "Heavy Rainfall"
-    elif 115.6 <= val_mm <= 204.4: return "Very Heavy Rainfall"
-    else: return "Extremely Heavy Rainfall"
+    if val_mm < 0.1:
+        return "No Rainfall"
+    if val_mm <= 15.5:
+        return "Very Light to Light Rainfall"
+    if val_mm <= 64.4:
+        return "Moderate Rainfall"
+    if val_mm <= 115.5:
+        return "Heavy Rainfall"
+    if val_mm <= 204.4:
+        return "Very Heavy Rainfall"
+    return "Extremely Heavy Rainfall"
 
 def categorize_imd_wind(speed_kmh):
-    if speed_kmh < 20: return "Light Surface Winds"
-    elif 20 <= speed_kmh < 52: return "Moderate / Strong Gusty Winds"
-    elif 52 <= speed_kmh <= 61: return "Moderate Squall"
-    elif 62 <= speed_kmh <= 87: return "Severe Squall"
-    else: return "Very Severe Squall (>87 km/h)"
+    if speed_kmh < 20:
+        return "Light Surface Winds"
+    if speed_kmh < 52:
+        return "Moderate / Strong Gusty Winds"
+    if speed_kmh <= 61:
+        return "Moderate Squall"
+    if speed_kmh <= 87:
+        return "Severe Squall"
+    return "Very Severe Squall (>87 km/h)"
 
 def check_thunderstorm_conditions(max_cape=0, min_li=0, precip=0):
     if max_cape > 1000 or precip > 5.0 or min_li < -3:
@@ -314,12 +314,18 @@ with tab_home:
     live_weather = fetch_live_metrics(st.session_state.lat, st.session_state.lon)
     live_aqi = fetch_air_quality(st.session_state.lat, st.session_state.lon)
     forecast_alert_df = fetch_alert_data(st.session_state.lat, st.session_state.lon)
+
     if live_weather and live_aqi:
         c1, c2, c3, c4 = st.columns(4)
-        with c1: st.metric("🌡️ Surface Temperature", f"{live_weather['temperature_2m']} °C")
-        with c2: st.metric("💧 Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
-        with c3: st.metric("💨 Wind Velocity", f"{live_weather['wind_speed_10m'] / 3.6:.1f} m/s")
-        with c4: st.metric("🌧️ Gauge Rainfall", f"{live_weather['precipitation']} mm")
+        with c1:
+            st.metric("🌡️ Surface Temperature", f"{live_weather['temperature_2m']} °C")
+        with c2:
+            st.metric("💧 Relative Humidity", f"{live_weather['relative_humidity_2m']} %")
+        with c3:
+            st.metric("💨 Wind Velocity", f"{live_weather['wind_speed_10m'] / 3.6:.1f} m/s")
+        with c4:
+            st.metric("🌧️ Gauge Rainfall", f"{live_weather['precipitation']} mm")
+
         st.markdown("---")
         dash_col1, dash_col2 = st.columns(2)
         with dash_col1:
@@ -335,10 +341,20 @@ with tab_home:
                     st.info(f"🔵 **Light Rain Expected** ({total_rain:.1f} mm expected).")
                 else:
                     st.success("🟢 **No Significant Rain Expected** over the next 24 hours.")
+
         with dash_col2:
             st.markdown("#### 🍃 Live Air Quality Index (AQI)")
             eaqi_val = live_aqi["european_aqi"]
-            status, emoji = ("Excellent", "🟢") if eaqi_val <= 20 else ("Fair", "🟡") if eaqi_val <= 40 else ("Moderate", "🟠") if eaqi_val <= 60 else ("Poor", "🔴") if eaqi_val <= 80 else ("Extremely Poor", "🟣")
+            if eaqi_val <= 20:
+                status, emoji = "Excellent", "🟢"
+            elif eaqi_val <= 40:
+                status, emoji = "Fair", "🟡"
+            elif eaqi_val <= 60:
+                status, emoji = "Moderate", "🟠"
+            elif eaqi_val <= 80:
+                status, emoji = "Poor", "🔴"
+            else:
+                status, emoji = "Extremely Poor", "🟣"
             st.markdown(f"##### Assessment: {emoji} **{status}** (Score: {eaqi_val})")
             st.table(pd.DataFrame({
                 "Component": ["PM2.5", "PM10", "NO₂", "O₃", "SO₂"],
@@ -350,8 +366,9 @@ with tab_meteogram:
     tab_ecmwf, tab_gfs = st.tabs(["EU ECMWF IFS (9km)", "US GFS Seamless"])
     models_config = {
         "ECMWF": {"api_id": "ecmwf_ifs", "title": "ECMWF IFS", "tab": tab_ecmwf},
-        "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs}
+        "GFS": {"api_id": "gfs_seamless", "title": "GFS Seamless", "tab": tab_gfs},
     }
+
     for model_key, config in models_config.items():
         with config["tab"]:
             with st.spinner(f"Extracting time-series arrays and generating {config['title']} charts..."):
@@ -359,34 +376,41 @@ with tab_meteogram:
                 if df_hourly is not None and not df_hourly.empty:
                     try:
                         fig_meteo, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
-                        fig_meteo.patch.set_facecolor("white")
-                        for ax in [ax1, ax2, ax3]:
-                            ax.set_facecolor("white")
-                            ax.tick_params(colors="#111827", which="both", labelsize=10)
-                            ax.xaxis.label.set_color("#111827")
-                            ax.yaxis.label.set_color("#111827")
-                            ax.grid(True, color="#94a3b8", alpha=0.35, linestyle="--")
+                        fig_meteo.patch.set_alpha(0)
+                        for ax in (ax1, ax2, ax3):
+                            ax.patch.set_alpha(0)
+                            ax.set_facecolor("none")
+                            ax.tick_params(colors="white", which="both", labelsize=10)
+                            ax.xaxis.label.set_color("white")
+                            ax.yaxis.label.set_color("white")
+                            ax.grid(True, color="white", alpha=0.1, linestyle="--")
                             for spine in ax.spines.values():
-                                spine.set_edgecolor("#64748b")
-                        ax1.plot(df_hourly["time"], df_hourly["temperature_2m"], color="#ea580c", linewidth=2.0, label="Air Temp (°C)")
-                        ax1.plot(df_hourly["time"], df_hourly["dew_point_2m"], color="#0284c7", linewidth=1.5, linestyle=":", label="Dew Point (°C)")
+                                spine.set_edgecolor("white")
+                                spine.set_alpha(0.3)
+
+                        ax1.plot(df_hourly["time"], df_hourly["temperature_2m"], color="#f97316", linewidth=2.0, label="Air Temp (°C)")
+                        ax1.plot(df_hourly["time"], df_hourly["dew_point_2m"], color="#38bdf8", linewidth=1.5, linestyle=":", label="Dew Point (°C)")
                         ax1.set_ylabel("Temperature (°C)", weight="bold")
-                        ax1.legend(loc="upper right")
+                        ax1.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         ax1_rh = ax1.twinx()
-                        ax1_rh.plot(df_hourly["time"], df_hourly["relative_humidity_2m"], color="#059669", linewidth=1.0, alpha=0.7, label="RH (%)")
-                        ax1_rh.set_ylabel("Humidity (%)", color="#059669")
-                        ax1_rh.tick_params(colors="#059669", labelcolor="#059669")
+                        ax1_rh.patch.set_alpha(0)
+                        ax1_rh.plot(df_hourly["time"], df_hourly["relative_humidity_2m"], color="#10b981", linewidth=1.0, alpha=0.4, label="RH (%)")
+                        ax1_rh.set_ylabel("Humidity (%)", color="#10b981", alpha=0.7)
+                        ax1_rh.tick_params(colors="#10b981", which="both", labelcolor="#10b981")
+
                         ax2.bar(df_hourly["time"], df_hourly["precipitation"], color="#2563eb", width=0.03, label="Hourly Rain (mm)")
                         ax2.set_ylabel("Precipitation (mm)", weight="bold")
-                        ax2.legend(loc="upper right")
+                        ax2.legend(loc="upper right", framealpha=0.1, labelcolor="white")
+
                         wind_ms = df_hourly["wind_speed_10m"] / 3.6
                         gust_ms = df_hourly["wind_gusts_10m"] / 3.6
-                        ax3.plot(df_hourly["time"], wind_ms, color="#ca8a04", linewidth=1.8, label="Wind Speed (m/s)")
-                        ax3.fill_between(df_hourly["time"], wind_ms, gust_ms, color="#ca8a04", alpha=0.15, label="Wind Gust Range")
+                        ax3.plot(df_hourly["time"], wind_ms, color="#eab308", linewidth=1.8, label="Wind Speed (m/s)")
+                        ax3.fill_between(df_hourly["time"], wind_ms, gust_ms, color="#eab308", alpha=0.15, label="Wind Gust Range")
                         ax3.set_ylabel("Wind Velocity (m/s)", weight="bold")
-                        ax3.legend(loc="upper right")
+                        ax3.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         ax3.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%H:%M"))
                         ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
+
                         plt.tight_layout()
                         st.pyplot(fig_meteo, clear_figure=True)
                     except Exception as plot_err:
@@ -399,6 +423,7 @@ with tab_grib_analysis:
     grib_target_day = min(DAYS, 3)
     target_step_hours = grib_target_day * 24
     st.info(f"📅 **Active Horizon:** Rendering **Day {grib_target_day} ({target_step_hours} Hour Forecast)**.")
+
     if not os.path.exists(GRIB_FILE_PATH):
         st.error(f"GRIB dataset targets missing at destination: `{GRIB_FILE_PATH}`")
     elif not os.path.exists(SHAPEFILE_PATH):
@@ -408,42 +433,39 @@ with tab_grib_analysis:
         param_settings = [
             (p_tab_precip, "tp", "Greens", [0, 0.1, 1, 2.5, 5, 10, 20, 35, 50, 75], "ECMWF Total Precipitation"),
             (p_tab_temp, "2t", "coolwarm", None, "ECMWF 2m Air Temperature"),
-            (p_tab_wind, "100ws", "YlGnBu", None, "ECMWF 100m Wind Speed")
+            (p_tab_wind, "100ws", "YlGnBu", None, "ECMWF 100m Wind Speed"),
         ]
         india_gdf = gpd.read_file(SHAPEFILE_PATH)
         if india_gdf.crs is not None:
             india_gdf = india_gdf.to_crs(epsg=4326)
+
         for tab, short_name, cmap, levels, title_prefix in param_settings:
             with tab:
                 with st.spinner(f"Extracting {title_prefix} for step {target_step_hours}h..."):
                     try:
-                        grib_payload = process_grib_data_pure(GRIB_FILE_PATH, target_step_hours, param_key=short_name)
-                        lon2d = grib_payload["lon2d"]
-                        lat2d = grib_payload["lat2d"]
-                        data_vals = grib_payload["data_vals"]
-                        units = grib_payload["units"]
-                        f_time = grib_payload["f_time"]
-                        v_time = grib_payload["v_time"]
+                        payload = process_grib_data_pure(GRIB_FILE_PATH, target_step_hours, param_key=short_name)
                         fig_grib, ax = plt.subplots(figsize=(12, 10))
-                        fig_grib.patch.set_facecolor("white")
-                        ax.set_facecolor("white")
+                        fig_grib.patch.set_alpha(0)
+                        ax.patch.set_alpha(0)
+                        ax.set_facecolor("none")
                         ax.axis("off")
+
                         m = Basemap(projection="cyl", llcrnrlon=65, urcrnrlon=98, llcrnrlat=5, urcrnrlat=38, resolution="i", ax=ax)
-                        m.drawparallels(np.arange(5, 41, 5), labels=[1, 0, 0, 0], fontsize=10, color="#64748b", alpha=0.5)
-                        m.drawmeridians(np.arange(65, 101, 5), labels=[0, 0, 0, 1], fontsize=10, color="#64748b", alpha=0.5)
-                        m.drawmapboundary(color="#334155", linewidth=0.5, fill_color="white")
-                        import warnings
-                        with warnings.catch_warnings():
-                            warnings.filterwarnings("ignore", category=UserWarning)
-                            if levels:
-                                cf = m.contourf(lon2d, lat2d, data_vals, levels=levels, cmap=cmap, extend="max", latlon=True)
-                            else:
-                                cf = m.contourf(lon2d, lat2d, data_vals, levels=15, cmap=cmap, extend="both", latlon=True)
+                        m.drawparallels(np.arange(5, 41, 5), labels=[1, 0, 0, 0], fontsize=10, color="white", alpha=0.15)
+                        m.drawmeridians(np.arange(65, 101, 5), labels=[0, 0, 0, 1], fontsize=10, color="white", alpha=0.15)
+                        m.drawmapboundary(color=(1, 1, 1, 0.3), linewidth=0.5, fill_color="none")
+
+                        if levels:
+                            cf = m.contourf(payload["lon2d"], payload["lat2d"], payload["data_vals"], levels=levels, cmap=cmap, extend="max", latlon=True)
+                        else:
+                            cf = m.contourf(payload["lon2d"], payload["lat2d"], payload["data_vals"], levels=15, cmap=cmap, extend="both", latlon=True)
                         india_gdf.boundary.plot(ax=ax, edgecolor="black", linewidth=0.8, zorder=100, alpha=0.6)
+
                         cbar = plt.colorbar(cf, pad=0.04, shrink=0.8)
-                        cbar.set_label(f"({units})", color="#111827", weight="bold", fontsize=11)
-                        cbar.ax.yaxis.set_tick_params(color="#111827", labelcolor="#111827", labelsize=10)
-                        plt.title(f"{title_prefix} ({target_step_hours}h Forecast Horizon)\nForecast Run: {f_time}  |  Valid Time: {v_time}", fontsize=13, weight="bold", color="#111827", pad=15)
+                        cbar.set_label(f"({payload['units']})", color="white", weight="bold", fontsize=11)
+                        cbar.ax.yaxis.set_tick_params(color="white", labelcolor="white", labelsize=10)
+                        cbar.outline.set_edgecolor("white")
+                        plt.title(f"{title_prefix} ({target_step_hours}h Forecast Horizon)\nForecast Run: {payload['f_time']}  |  Valid Time: {payload['v_time']}", fontsize=13, weight="bold", color="white", pad=15)
                         plt.tight_layout()
                         st.pyplot(fig_grib, clear_figure=True)
                     except Exception as e:
@@ -458,6 +480,7 @@ with tab_weather_update:
         day2 = today + timedelta(days=1)
         df_day1 = df_ecmwf[df_ecmwf["time"].dt.date == day1]
         df_day2 = df_ecmwf[df_ecmwf["time"].dt.date == day2]
+
         if not df_day1.empty and not df_day2.empty:
             t_max_1, t_min_1 = df_day1["temperature_2m"].max(), df_day1["temperature_2m"].min()
             rh_avg_1 = df_day1["relative_humidity_2m"].mean() if "relative_humidity_2m" in df_day1 else 0
@@ -465,14 +488,16 @@ with tab_weather_update:
             wind_1_kmh = df_day1["wind_speed_10m"].max() * 3.6 if "wind_speed_10m" in df_day1 else 0
             cape_1 = df_day1["cape"].max() if "cape" in df_day1 else 0
             li_1 = df_day1["lifted_index"].min() if "lifted_index" in df_day1 else 0
-            ts_1 = check_thunderstorm_conditions(max_cape=cape_1, min_li=li_1, precip=rain_1)
+            ts_1 = check_thunderstorm_conditions(cape_1, li_1, rain_1)
+
             t_max_2, t_min_2 = df_day2["temperature_2m"].max(), df_day2["temperature_2m"].min()
             rh_avg_2 = df_day2["relative_humidity_2m"].mean() if "relative_humidity_2m" in df_day2 else 0
             rain_2 = df_day2["precipitation"].sum()
             wind_2_kmh = df_day2["wind_speed_10m"].max() * 3.6 if "wind_speed_10m" in df_day2 else 0
             cape_2 = df_day2["cape"].max() if "cape" in df_day2 else 0
             li_2 = df_day2["lifted_index"].min() if "lifted_index" in df_day2 else 0
-            ts_2 = check_thunderstorm_conditions(max_cape=cape_2, min_li=li_2, precip=rain_2)
+            ts_2 = check_thunderstorm_conditions(cape_2, li_2, rain_2)
+
             st.markdown(f"""
 **📅 Today ({day1.strftime('%A, %b %d')})**
 * **Rainfall Category:** {categorize_imd_rainfall(rain_1)} ({rain_1:.1f} mm)
@@ -501,15 +526,17 @@ with tab_fog:
     models_config = {"ECMWF": {"api_id": "ecmwf_ifs025", "title": "ECMWF IFS Ensemble", "tab": tab_ecmwf}}
 
     def style_ax(ax):
-        ax.set_facecolor("white")
-        ax.tick_params(colors="#111827", which="both", labelsize=10)
-        ax.xaxis.label.set_color("#111827")
-        ax.yaxis.label.set_color("#111827")
-        ax.grid(True, color="#94a3b8", alpha=0.35, linestyle="--")
+        ax.patch.set_alpha(0)
+        ax.set_facecolor("none")
+        ax.tick_params(colors="white", which="both", labelsize=10)
+        ax.xaxis.label.set_color("white")
+        ax.yaxis.label.set_color("white")
+        ax.grid(True, color="white", alpha=0.1, linestyle="--")
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%H:%M"))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         for spine in ax.spines.values():
-            spine.set_edgecolor("#64748b")
+            spine.set_edgecolor("white")
+            spine.set_alpha(0.3)
 
     for model_key, config in models_config.items():
         with config["tab"]:
@@ -522,57 +549,64 @@ with tab_fog:
                         rh_cols = get_member_cols(df_ens, "relative_humidity_2m")
                         pr_cols = get_member_cols(df_ens, "precipitation")
                         ws_cols = get_member_cols(df_ens, "wind_speed_10m")
-                        t_mean, t_p10, t_p90 = df_ens[t_cols].mean(axis=1), df_ens[t_cols].quantile(0.10, axis=1), df_ens[t_cols].quantile(0.90, axis=1)
+
+                        t_mean = df_ens[t_cols].mean(axis=1)
+                        t_p10 = df_ens[t_cols].quantile(0.10, axis=1)
+                        t_p90 = df_ens[t_cols].quantile(0.90, axis=1)
                         td_mean = df_ens[td_cols].mean(axis=1)
-                        rh_mean, rh_p10, rh_p90 = df_ens[rh_cols].mean(axis=1), df_ens[rh_cols].quantile(0.10, axis=1), df_ens[rh_cols].quantile(0.90, axis=1)
+                        rh_mean = df_ens[rh_cols].mean(axis=1)
+                        rh_p10 = df_ens[rh_cols].quantile(0.10, axis=1)
+                        rh_p90 = df_ens[rh_cols].quantile(0.90, axis=1)
                         pr_mean = df_ens[pr_cols].mean(axis=1)
                         ws_ms_df = df_ens[ws_cols] / 3.6
-                        ws_mean, ws_p10, ws_p90 = ws_ms_df.mean(axis=1), ws_ms_df.quantile(0.10, axis=1), ws_ms_df.quantile(0.90, axis=1)
+                        ws_mean = ws_ms_df.mean(axis=1)
+                        ws_p10 = ws_ms_df.quantile(0.10, axis=1)
+                        ws_p90 = ws_ms_df.quantile(0.90, axis=1)
 
                         st.markdown("#### 🌡️ Temperature & Dew Point")
                         fig_temp, ax_temp = plt.subplots(figsize=(12, 4))
-                        fig_temp.patch.set_facecolor("white")
+                        fig_temp.patch.set_alpha(0)
                         style_ax(ax_temp)
                         ax_temp.fill_between(df_ens["time"], t_p10, t_p90, color="#f97316", alpha=0.18, label="Temp P10–P90 Spread")
-                        ax_temp.plot(df_ens["time"], t_mean, color="#ea580c", linewidth=2.0, label="Ensemble Mean Temp (°C)")
-                        ax_temp.plot(df_ens["time"], td_mean, color="#0284c7", linewidth=1.5, linestyle=":", label="Mean Dew Point (°C)")
+                        ax_temp.plot(df_ens["time"], t_mean, color="#f97316", linewidth=2.0, label="Ensemble Mean Temp (°C)")
+                        ax_temp.plot(df_ens["time"], td_mean, color="#38bdf8", linewidth=1.5, linestyle=":", label="Mean Dew Point (°C)")
                         ax_temp.set_ylabel("Temperature (°C)", weight="bold")
-                        ax_temp.legend(loc="upper right")
+                        ax_temp.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         plt.tight_layout()
                         st.pyplot(fig_temp, clear_figure=True)
 
                         st.markdown("#### 💧 Relative Humidity")
                         fig_rh, ax_rh = plt.subplots(figsize=(12, 4))
-                        fig_rh.patch.set_facecolor("white")
+                        fig_rh.patch.set_alpha(0)
                         style_ax(ax_rh)
                         ax_rh.fill_between(df_ens["time"], rh_p10, rh_p90, color="#10b981", alpha=0.18, label="RH P10–P90 Spread")
-                        ax_rh.plot(df_ens["time"], rh_mean, color="#059669", linewidth=2.0, label="Ensemble Mean RH (%)")
+                        ax_rh.plot(df_ens["time"], rh_mean, color="#10b981", linewidth=2.0, label="Ensemble Mean RH (%)")
                         ax_rh.set_ylabel("Relative Humidity (%)", weight="bold")
                         ax_rh.set_ylim(0, 105)
-                        ax_rh.legend(loc="upper right")
+                        ax_rh.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         plt.tight_layout()
                         st.pyplot(fig_rh, clear_figure=True)
 
                         st.markdown("#### 🌧️ Precipitation")
                         fig_pr, ax_pr = plt.subplots(figsize=(12, 4))
-                        fig_pr.patch.set_facecolor("white")
+                        fig_pr.patch.set_alpha(0)
                         style_ax(ax_pr)
                         for col in pr_cols:
                             ax_pr.plot(df_ens["time"], df_ens[col], color="#60a5fa", linewidth=0.5, alpha=0.15)
                         ax_pr.bar(df_ens["time"], pr_mean, color="#2563eb", width=0.03, label="Ensemble Mean Rain (mm)")
                         ax_pr.set_ylabel("Precipitation (mm)", weight="bold")
-                        ax_pr.legend(loc="upper right")
+                        ax_pr.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         plt.tight_layout()
                         st.pyplot(fig_pr, clear_figure=True)
 
                         st.markdown("#### 💨 Wind Velocity")
                         fig_ws, ax_ws = plt.subplots(figsize=(12, 4))
-                        fig_ws.patch.set_facecolor("white")
+                        fig_ws.patch.set_alpha(0)
                         style_ax(ax_ws)
                         ax_ws.fill_between(df_ens["time"], ws_p10, ws_p90, color="#eab308", alpha=0.18, label="Wind P10–P90 Spread")
-                        ax_ws.plot(df_ens["time"], ws_mean, color="#ca8a04", linewidth=1.8, label="Ensemble Mean Wind (m/s)")
+                        ax_ws.plot(df_ens["time"], ws_mean, color="#eab308", linewidth=1.8, label="Ensemble Mean Wind (m/s)")
                         ax_ws.set_ylabel("Wind Velocity (m/s)", weight="bold")
-                        ax_ws.legend(loc="upper right")
+                        ax_ws.legend(loc="upper right", framealpha=0.1, labelcolor="white")
                         plt.tight_layout()
                         st.pyplot(fig_ws, clear_figure=True)
                     except Exception as plot_err:
