@@ -438,36 +438,55 @@ def fetch_weather_data(lat, lon, days, model_id):
         df["time"] = pd.to_datetime(df["time"])
         return df
     except Exception: return None
-@st.cache_data(show_spinner="Fetching 51-member ensemble data from Open-Meteo...")
+@st.cache_data(show_spinner="Fetching ECMWF ensemble data from Open-Meteo...")
 def fetch_ecmwf_ensemble_51(lat, lon, days=10, model="ecmwf_ifs025"):
-    # 1) Fetch 51 ensemble members
-    ens_url = "https://ensemble-api.open-meteo.com/v1/ensemble"
-    ens_vars = [
-        "temperature_2m",
-        "relative_humidity_2m",
-        "wind_speed_10m",
-        "dew_point_2m"
-        "precipitation",
-    ]
-    ens_params = {
+    url = "https://ensemble-api.open-meteo.com/v1/ensemble"
+    params = {
         "latitude": lat,
         "longitude": lon,
         "models": model,
-        "hourly": ens_vars,
+        "hourly": [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "wind_speed_10m",
+            "dew_point_2m",
+            "precipitation",
+        ],
         "forecast_days": days,
         "timezone": "auto",
     }
 
-    resp = requests.get(ens_url, params=ens_params, timeout=30)
-    data = resp.json()
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        data = response.json()
 
-    if "hourly" not in data or resp.status_code != 200:
-        err_msg = data.get("reason", "Could not fetch ensemble data.")
-        st.error(f"Open-Meteo Ensemble API error: {err_msg}")
+        if response.status_code != 200 or "hourly" not in data:
+            reason = data.get("reason", data.get("error", response.text))
+            st.error(f"Open-Meteo Ensemble API error: {reason}")
+            return None
+
+        df_ens = pd.DataFrame(data["hourly"])
+        if "time" not in df_ens.columns:
+            st.error(f"Ensemble API response has no time column. Returned: {list(df_ens.columns)}")
+            return None
+
+        df_ens["time"] = pd.to_datetime(df_ens["time"])
+        return df_ens
+
+    except (requests.RequestException, ValueError) as exc:
+        st.error(f"Could not fetch or parse ensemble data: {exc}")
         return None
 
-    df_ens = pd.DataFrame(data["hourly"])
-    df_ens["time"] = pd.to_datetime(df_ens["time"])
+
+def get_member_cols(df, variable):
+    """Find columns such as temperature_2m_member01 in the API response."""
+    member_cols = [
+        col for col in df.columns
+        if col.startswith(f"{variable}_member")
+    ]
+
+    # Support responses that provide the variable without member suffixes.
+    return member_cols or ([variable] if variable in df.columns else [])
 
 @st.cache_data(show_spinner="Parsing Primary GRIB2 Data Matrix...")
 def process_grib_data_pure(file_path, selected_step_hours, param_key="tp"):
