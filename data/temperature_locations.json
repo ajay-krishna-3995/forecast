@@ -26,12 +26,4 @@
   {"name": "Mysuru", "latitude": 12.2958, "longitude": 76.6394},
   {"name": "Mangalore", "latitude": 12.9141, "longitude": 74.8560},
   {"name": "Goa", "latitude": 15.2993, "longitude": 74.1240},
-  {"name": "Kochi", "latitude": 9.9312, "longitude": 76.2673},
-  {"name": "Trivandrum", "latitude": 8.5241, "longitude": 76.9366},
-  {"name": "Bhubaneswar", "latitude": 20.2961, "longitude": 85.8245},
-  {"name": "Patna", "latitude": 25.5941, "longitude": 85.1376},
-  {"name": "Ranchi", "latitude": 23.3441, "longitude": 85.3096},
-  {"name": "Guwahati", "latitude": 26.1445, "longitude": 91.7362},
-  {"name": "Raipur", "latitude": 21.2514, "longitude": 81.6296},
-  {"name": "Nagpur", "latitude": 21.1458, "longitude": 79.0882}
 ]
