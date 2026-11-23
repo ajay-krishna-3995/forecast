@@ -14,7 +14,7 @@ LOCATIONS_FILE = (
 )
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_locations():
     with LOCATIONS_FILE.open(encoding="utf-8") as file:
         locations = json.load(file)
@@ -113,7 +113,8 @@ if results is not None:
         table, dates = build_table(
             st.session_state["temperature_locations"], results, table_days
         )
-        st.dataframe(table, use_container_width=True)
+        table_height = min(800, 38 + len(table) * 35)
+        st.dataframe(table, use_container_width=True, height=table_height)
 
         first_date = pd.to_datetime(dates[0])
         title = (
