@@ -47,11 +47,11 @@ setInterval(hideViewerBadge, 500);
 
 st.markdown("""
 <style>
-/* Hide sidebar collapse controls */
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] {
-    display: none !important;
-}
+# /* Hide sidebar collapse controls */
+# [data-testid="stSidebarCollapseButton"],
+# [data-testid="collapsedControl"] {
+#     display: none !important;
+# }
 
 /* Pin sidebar open */
 section[data-testid="stSidebar"] {
