@@ -45,21 +45,21 @@ setInterval(hideViewerBadge, 500);
 </script>
 ''', height=0, width=0)
 
-# st.markdown("""
-# <style>
+st.markdown("""
+<style>
 # /* Hide sidebar collapse controls */
 # [data-testid="stSidebarCollapseButton"],
 # [data-testid="collapsedControl"] {
 #     display: none !important;
 # }
 
-# /* Pin sidebar open */
-# section[data-testid="stSidebar"] {
-#     min-width: 320px !important;
-#     max-width: 320px !important;
-#     transform: none !important;
-#     visibility: visible !important;
-# }
+/* Pin sidebar open */
+section[data-testid="stSidebar"] {
+    min-width: 320px !important;
+    max-width: 320px !important;
+    transform: none !important;
+    visibility: visible !important;
+}
 
 # /* Prevent sidebar closing through keyboard or resize */
 # @media (max-width: 768px) {
@@ -68,8 +68,8 @@ setInterval(hideViewerBadge, 500);
 #         width: 320px !important;
 #     }
 # }
-# </style>
-# """, unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 # -------------------------------------------------------------------------------
 # ECMWF DATA RETRIEVAL API (3 DAYS EXTENSION)
 # -------------------------------------------------------------------------------
