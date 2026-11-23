@@ -29,21 +29,21 @@ st.set_page_config(
 )
 
 # 2. Hide Header & Viewer Badges Immediately
-html('''
-<script>
-function hideViewerBadge() {
-    const parentDoc = window.top.document;
-    parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
-        el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
-    });
-    parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
-        el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
-    });
-}
-hideViewerBadge();
-setInterval(hideViewerBadge, 500);
-</script>
-''', height=0, width=0)
+# html('''
+# <script>
+# function hideViewerBadge() {
+#     const parentDoc = window.top.document;
+#     parentDoc.querySelectorAll('[href*="streamlit.io/cloud"], [href*="sharing-badge"]').forEach(el => {
+#         el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
+#     });
+#     parentDoc.querySelectorAll('[class*="viewerBadge"], [class*="profile"], [class*="avatar"]').forEach(el => {
+#         el.style.display = 'none'; el.style.visibility = 'hidden'; el.style.width = '0px'; el.style.height = '0px';
+#     });
+# }
+# hideViewerBadge();
+# setInterval(hideViewerBadge, 500);
+# </script>
+# ''', height=0, width=0)
 
 st.markdown("""
 <style>
