@@ -28,7 +28,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-2. Hide Header & Viewer Badges Immediately
+#2. Hide Header & Viewer Badges Immediately
 html('''
 <script>
 function hideViewerBadge() {
